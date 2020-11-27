@@ -20,3 +20,7 @@ Output is a bmp file
 # Example Render
 
 ![alt text](kuva.png)
+
+Now with soft shadows!
+
+![alt text](kuva2.png)
