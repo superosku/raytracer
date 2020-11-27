@@ -2,7 +2,6 @@ extern crate rand;
 
 use std::fs::File;
 use std::io::prelude::*;
-use rand::Rng;
 use rayon::prelude::*;
 
 
@@ -133,7 +132,7 @@ impl Sphere {
 
         let d1 = (- common_part) - delta_sqrt;
         let d2 = (- common_part) + delta_sqrt;
-        let distance = d1.min(d2) - 0.001;
+        let distance = d1.min(d2);// - 0.0001;
         let point = ray.origin.add(&ray.direction.multiply(distance));
         let normal_vector = point.substract(&self.position).normalized();
 
@@ -222,8 +221,6 @@ impl World {
     }
 
     pub fn point_sees_light(&self, point: &Vec3, sphere: &Sphere) -> f32 {
-        let mut rng = rand::thread_rng();
-
         let point_to_sphere = sphere.position.substract(point).normalized();
         let normal1 = point_to_sphere.cross_product(&Vec3::new(1.0, 0.0, 0.0));
         let normal2 = point_to_sphere.cross_product(&normal1);
@@ -303,7 +300,11 @@ impl World {
 
         // Get the color based on match
         match closest_sphere {
-            Some((_, new_ray_position, normal_vec, sphere)) => {
+            Some((_, new_ray_exact_position, normal_vec, sphere)) => {
+                // Move intersection point a bit away from the surface
+                let new_ray_position = new_ray_exact_position
+                    .add(&normal_vec.multiply(0.001));
+
                 let new_ray_direction = ray.direction.substract(&normal_vec.multiply(
                     ray.direction.dot_product(&normal_vec) * 2.0)
                 ).normalized();
