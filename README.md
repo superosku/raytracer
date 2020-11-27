@@ -24,3 +24,7 @@ Output is a bmp file
 Now with soft shadows!
 
 ![alt text](kuva2.png)
+
+Now with opaque spheres!
+
+![alt text](kuva3.png)

@@ -106,15 +106,35 @@ struct Sphere {
     position: Vec3,
     color: Vec3,
     radius: f64,
-    reflective: f64
+    reflective: f64,
+    opaque: bool,
+    refractive_ratio: f64,
 }
 
 impl Sphere {
     pub fn new(position: Vec3, color: Vec3, radius: f64, reflective: f64) -> Sphere {
-        Sphere {position, color, radius, reflective}
+        Sphere {
+            position,
+            color,
+            radius,
+            reflective,
+            opaque: false,
+            refractive_ratio: 1.0
+        }
     }
 
-    pub fn intersects(&self, ray: &Ray) -> Option<(f64, Vec3, Vec3)> {
+    pub fn new_opaque(position: Vec3, radius: f64, refractive_ratio: f64) -> Sphere {
+        Sphere {
+            position,
+            color: Vec3::new(1.0, 1.0, 1.0),
+            radius,
+            reflective: 0.0,
+            opaque: true,
+            refractive_ratio
+        }
+    }
+
+    pub fn intersects(&self, ray: &Ray) -> Option<(f64, Vec3, Vec3, bool)> {
         // https://en.wikipedia.org/wiki/Line%E2%80%93sphere_intersection
         let common_part = ray.direction.dot_product(
             &ray.origin.substract(&self.position)
@@ -136,10 +156,12 @@ impl Sphere {
         let point = ray.origin.add(&ray.direction.multiply(distance));
         let normal_vector = point.substract(&self.position).normalized();
 
+        let is_inside = ray.origin.substract(&self.position).length() < self.radius;
+
         if distance < 0.0 {
             return None
         }
-        return Some((distance, point, normal_vector));
+        return Some((distance, point, normal_vector, is_inside));
     }
 }
 
@@ -184,13 +206,13 @@ impl World {
                 0.2
             ),
             Sphere::new(
-                Vec3::new(10.0, 0.0, -200.0),
+                Vec3::new(10.0, 0.0, -20000.0),
                 Vec3::new(1.0, 1.0, 1.0),
-                199.0,
+                19999.0,
                 0.2
             ),
             Sphere::new(
-                Vec3::new(15.0, 0.0, 1.0),
+                Vec3::new(15.0, 3.0, 1.0),
                 Vec3::new(1.0, 1.0, 1.0),
                 2.5,
                 0.8
@@ -202,16 +224,26 @@ impl World {
                 0.8
             ),
             Sphere::new(
-                Vec3::new(8.0, -2.0, -1.0),
+                Vec3::new(5.0, -2.0, -1.0),
                 Vec3::new(0.0, 0.0, 1.0),
                 1.0,
                 0.0
             ),
             Sphere::new(
-                Vec3::new(8.0, 0.0, -1.0),
+                Vec3::new(5.0, 0.0, -1.0),
                 Vec3::new(0.0, 0.0, 1.0),
                 1.0,
                 0.0
+            ),
+            // Sphere::new_opaque(
+            //     Vec3::new(7.0, 1.0, 4.0),
+            //     1.0,
+            //     1.5,
+            // ),
+            Sphere::new_opaque(
+                Vec3::new(6.0, 0.5, 1.0),
+                0.6,
+                1.5,
             ),
         ];
         World {
@@ -249,8 +281,10 @@ impl World {
                         ray_direction.clone(),
                     )) {
                         Some(_) => {
-                            works = false;
-                            break;
+                            if !sphere.opaque {
+                                works = false;
+                                break;
+                            }
                         },
                         _ => {
                         }
@@ -279,18 +313,30 @@ impl World {
 
     pub fn calc_ray(&self, ray: &Ray, depth: i32) -> Vec3{
         // Find what ray intersects
-        let mut closest_sphere : Option<(f64, Vec3, Vec3, &Sphere)> = None;
+        let mut closest_sphere : Option<(f64, Vec3, Vec3, &Sphere, bool)> = None;
         for sphere in self.spheres.iter() {
             match sphere.intersects(ray) {
-                Some((distance, intersection_point, normal_vec)) => {
+                Some((distance, intersection_point, normal_vec, is_inside)) => {
                     match &closest_sphere {
-                        Some((current_distance, _, _, _)) => {
+                        Some((current_distance, _, _, _, _)) => {
                             if *current_distance > distance {
-                                closest_sphere = Some((distance, intersection_point, normal_vec, sphere))
+                                closest_sphere = Some((
+                                    distance,
+                                    intersection_point,
+                                    normal_vec,
+                                    sphere,
+                                    is_inside
+                                ))
                             }
                         },
                         _ => {
-                            closest_sphere = Some((distance, intersection_point, normal_vec, sphere))
+                            closest_sphere = Some((
+                                distance,
+                                intersection_point,
+                                normal_vec,
+                                sphere,
+                                is_inside
+                            ))
                         }
                     }
                 },
@@ -300,14 +346,42 @@ impl World {
 
         // Get the color based on match
         match closest_sphere {
-            Some((_, new_ray_exact_position, normal_vec, sphere)) => {
-                // Move intersection point a bit away from the surface
+            Some((_, new_ray_exact_position, circle_normal_vec, sphere, is_inside)) => {
+                let normal_vec =
+                    if is_inside {circle_normal_vec.multiply(-1.0)}
+                    else {circle_normal_vec};
+
+                if sphere.opaque {
+                    let new_ray_position = new_ray_exact_position
+                        .add(&normal_vec.multiply(-0.001));
+                    let refractive_ratio =
+                        if is_inside {sphere.refractive_ratio}
+                        else {1.0/sphere.refractive_ratio};
+                    let c = ray.direction.dot_product(&normal_vec.multiply(-1.0));// Todo -1 missa?
+                    let new_ray_direction =
+                        ray.direction.multiply(refractive_ratio)
+                        .add(
+                            &normal_vec.multiply(
+                                refractive_ratio * c
+                                -(
+                                    1.0 -
+                                    refractive_ratio.powi(2) *
+                                    (1.0 - c.powi(2))
+                                ).sqrt()
+                            )
+                        );
+                    let new_ray = Ray::new(new_ray_position.clone(), new_ray_direction);
+
+                    return self.calc_ray(&new_ray, depth - 1);
+                }
+
                 let new_ray_position = new_ray_exact_position
                     .add(&normal_vec.multiply(0.001));
 
                 let new_ray_direction = ray.direction.substract(&normal_vec.multiply(
                     ray.direction.dot_product(&normal_vec) * 2.0)
                 ).normalized();
+
                 let new_ray = Ray::new(new_ray_position.clone(), new_ray_direction);
 
                 let point_to_light = Ray::new(
@@ -461,8 +535,8 @@ impl Camera {
 
 fn main() {
     let camera = Camera::new(
-        Vec3::new(-10.0, 8.0, 12.0),
-        Vec3::new(1.0, -0.4, -0.5).normalized(),
+        Vec3::new(-13.0, 8.0, 7.0),
+        Vec3::new(1.0, -0.33, -0.3).normalized(),
     );
 
     let world = World::new();
