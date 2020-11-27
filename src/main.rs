@@ -1,5 +1,8 @@
+extern crate rand;
+
 use std::fs::File;
 use std::io::prelude::*;
+use rand::Rng;
 
 
 #[derive(Clone, Debug)]
@@ -247,6 +250,53 @@ impl World {
         }
     }
 
+    pub fn point_sees_light(&self, point: &Vec3, sphere: &Sphere) -> f32 {
+        let mut rng = rand::thread_rng();
+
+        let point_to_sphere = sphere.position.substract(point).normalized();
+        let normal1 = point_to_sphere.cross_product(&Vec3::new(1.0, 0.0, 0.0));
+        let normal2 = point_to_sphere.cross_product(&normal1);
+
+        let mut sum = 0;
+        let mut total = 0;
+        for (ring_size, count_in_ring) in [
+            (0.0, 1),
+            (0.333, 7),
+            (0.666, 15),
+            (1.0, 30)
+        ].iter() {
+            for i in 0..*count_in_ring {
+                total += 1;
+                let multiplier = (i as f32) / (*count_in_ring as f32) * 3.14159 * 2.0;
+                let light_point = sphere.position
+                    .add(&normal1.multiply((multiplier).cos() * sphere.radius * ring_size))
+                    .add(&normal2.multiply((multiplier).sin() * sphere.radius * ring_size));
+
+                let ray_direction = light_point.substract(point).normalized();
+
+                let mut works = true;
+                for sphere in self.spheres.iter() {
+                    match sphere.intersects(&Ray::new(
+                        point.clone(),
+                        ray_direction.clone(),
+                    )) {
+                        Some(_) => {
+                            works = false;
+                            break;
+                        },
+                        _ => {
+                        }
+                    }
+                }
+                if works {
+                    sum += 1;
+                }
+            }
+
+        }
+        sum as f32 / total as f32
+    }
+
     pub fn ray_sees_light(&self, ray: &Ray) -> bool {
         for sphere in self.spheres.iter() {
             match sphere.intersects(ray) {
@@ -288,25 +338,36 @@ impl World {
                 ).normalized();
                 let new_ray = Ray::new(new_ray_position.clone(), new_ray_direction);
 
-
                 let point_to_light = Ray::new(
                     new_ray_position.clone(),
                     self.light_point.substract(&new_ray_position).normalized()
                 );
 
-                // let to_light_angle = (
-                //     point_to_light.direction.normalized()
-                //     .dot_product(&new_ray.direction.normalized())
-                // ).acos();
                 let to_light_angle =
                     point_to_light.direction
                     .angle_between(&new_ray.direction);
 
-                let diffuse_color = if self.ray_sees_light(&point_to_light) {
-                    sphere.color.clone().multiply(1.0 - to_light_angle / 3.14159)
-                } else {
-                    sphere.color.clone().multiply(0.1)
-                };
+                let light_multiplier = self.point_sees_light(
+                    &new_ray_position,
+                    &Sphere::new(
+                        self.light_point.clone(),
+                        Vec3::new(1.0, 1.0, 1.0),
+                        3.0,
+                        1.0
+                    )
+                );
+
+                let diffuse_color = sphere
+                    .color.clone()
+                    .multiply(1.0 - to_light_angle / 3.14159)
+                    .multiply(light_multiplier * 0.8 + 0.2);
+
+                // let diffuse_color = if self.ray_sees_light(&point_to_light) {
+                // let diffuse_color = if self.ray_sees_light(&point_to_light) {
+                //     sphere.color.clone().multiply(1.0 - to_light_angle / 3.14159)
+                // } else {
+                //     sphere.color.clone().multiply(0.1)
+                // };
 
                 if sphere.reflective > 0.0 && depth > 0 {
                     return self
