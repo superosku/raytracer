@@ -7,13 +7,13 @@ use rayon::prelude::*;
 
 #[derive(Clone, Debug)]
 struct Vec3 {
-    x: f32,
-    y: f32,
-    z: f32,
+    x: f64,
+    y: f64,
+    z: f64,
 }
 
 impl Vec3 {
-    pub fn new(x: f32, y: f32, z: f32) -> Vec3 {
+    pub fn new(x: f64, y: f64, z: f64) -> Vec3 {
         Vec3 {x, y, z}
     }
 
@@ -25,7 +25,7 @@ impl Vec3 {
         )
     }
 
-    // pub fn addf(&self, value: f32) -> Vec3 {
+    // pub fn addf(&self, value: f64) -> Vec3 {
     //     Vec3::new(
     //         self.x + value,
     //         self.y + value,
@@ -33,7 +33,7 @@ impl Vec3 {
     //     )
     // }
 
-    pub fn multiply(&self, value: f32) -> Vec3 {
+    pub fn multiply(&self, value: f64) -> Vec3 {
         Vec3::new(
             self.x * value,
             self.y * value,
@@ -45,7 +45,7 @@ impl Vec3 {
         self.add(&other.multiply(-1.0))
     }
 
-    pub fn length(&self) -> f32 {
+    pub fn length(&self) -> f64 {
         (self.x.powi(2) + self.y.powi(2) + self.z.powi(2)).sqrt()
     }
 
@@ -58,7 +58,7 @@ impl Vec3 {
         )
     }
 
-    // pub fn rotate_z(&self, angle: f32) -> Vec3 {
+    // pub fn rotate_z(&self, angle: f64) -> Vec3 {
     //     Vec3::new(
     //         self.x * angle.cos() - self.y * angle.sin(),
     //         self.x * angle.sin() + self.y * angle.cos(),
@@ -66,7 +66,7 @@ impl Vec3 {
     //     )
     // }
 
-    // pub fn rotate_y(&self, angle: f32) -> Vec3 {
+    // pub fn rotate_y(&self, angle: f64) -> Vec3 {
     //     Vec3::new(
     //         self.x * angle.cos() + self.z * angle.sin(),
     //         self.y,
@@ -74,7 +74,7 @@ impl Vec3 {
     //     )
     // }
 
-    pub fn dot_product(&self, other: &Vec3) -> f32 {
+    pub fn dot_product(&self, other: &Vec3) -> f64 {
         self.x * other.x + self.y * other.y + self.z * other.z
     }
 
@@ -87,7 +87,7 @@ impl Vec3 {
     //     )
     // }
 
-    pub fn angle_between(&self, other: &Vec3) -> f32 {
+    pub fn angle_between(&self, other: &Vec3) -> f64 {
         (
             self.normalized().dot_product(&other.normalized())
         ).acos()
@@ -105,16 +105,16 @@ impl Vec3 {
 struct Sphere {
     position: Vec3,
     color: Vec3,
-    radius: f32,
-    reflective: f32
+    radius: f64,
+    reflective: f64
 }
 
 impl Sphere {
-    pub fn new(position: Vec3, color: Vec3, radius: f32, reflective: f32) -> Sphere {
+    pub fn new(position: Vec3, color: Vec3, radius: f64, reflective: f64) -> Sphere {
         Sphere {position, color, radius, reflective}
     }
 
-    pub fn intersects(&self, ray: &Ray) -> Option<(f32, Vec3, Vec3)> {
+    pub fn intersects(&self, ray: &Ray) -> Option<(f64, Vec3, Vec3)> {
         // https://en.wikipedia.org/wiki/Line%E2%80%93sphere_intersection
         let common_part = ray.direction.dot_product(
             &ray.origin.substract(&self.position)
@@ -220,7 +220,7 @@ impl World {
         }
     }
 
-    pub fn point_sees_light(&self, point: &Vec3, sphere: &Sphere) -> f32 {
+    pub fn point_sees_light(&self, point: &Vec3, sphere: &Sphere) -> f64 {
         let point_to_sphere = sphere.position.substract(point).normalized();
         let normal1 = point_to_sphere.cross_product(&Vec3::new(1.0, 0.0, 0.0));
         let normal2 = point_to_sphere.cross_product(&normal1);
@@ -235,7 +235,7 @@ impl World {
         ].iter() {
             for i in 0..*count_in_ring {
                 total += 1;
-                let multiplier = (i as f32) / (*count_in_ring as f32) * 3.14159 * 2.0;
+                let multiplier = (i as f64) / (*count_in_ring as f64) * 3.14159 * 2.0;
                 let light_point = sphere.position
                     .add(&normal1.multiply((multiplier).cos() * sphere.radius * ring_size))
                     .add(&normal2.multiply((multiplier).sin() * sphere.radius * ring_size));
@@ -262,7 +262,7 @@ impl World {
             }
 
         }
-        sum as f32 / total as f32
+        sum as f64 / total as f64
     }
 
     // pub fn ray_sees_light(&self, ray: &Ray) -> bool {
@@ -279,7 +279,7 @@ impl World {
 
     pub fn calc_ray(&self, ray: &Ray, depth: i32) -> Vec3{
         // Find what ray intersects
-        let mut closest_sphere : Option<(f32, Vec3, Vec3, &Sphere)> = None;
+        let mut closest_sphere : Option<(f64, Vec3, Vec3, &Sphere)> = None;
         for sphere in self.spheres.iter() {
             match sphere.intersects(ray) {
                 Some((distance, intersection_point, normal_vec)) => {
@@ -387,12 +387,12 @@ impl Camera {
             let xy_pairs_part = &xy_pairs[thread_len * *i as usize..thread_len * (*i as usize + 1)];
 
             for (x, y) in xy_pairs_part.iter() {
-                let x_angle: f32 = -(*x as f32 - (x_res as f32 - 1.0) / 2.0) / (x_res as f32 - 1.0);
-                let mut z_angle: f32 = (*y as f32 - (y_res as f32 - 1.0) / 2.0) / (y_res as f32  - 1.0);
-                z_angle *= y_res as f32 / x_res as f32;
+                let x_angle: f64 = -(*x as f64 - (x_res as f64 - 1.0) / 2.0) / (x_res as f64 - 1.0);
+                let mut z_angle: f64 = (*y as f64 - (y_res as f64 - 1.0) / 2.0) / (y_res as f64  - 1.0);
+                z_angle *= y_res as f64 / x_res as f64;
                 // Angles from -0.5 to 0.5
 
-                let zoom: f32 = 0.5;
+                let zoom: f64 = 0.5;
 
                 let x_perpendicular = self.direction
                     .cross_product(&Vec3::new(0.0, 0.0, 1.0));
