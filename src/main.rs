@@ -187,73 +187,130 @@ struct World {
 impl World {
     pub fn new() -> World {
         let spheres = vec![
-            Sphere::new(
-                Vec3::new(10.0, 0.5, 0.5),
-                Vec3::new(1.0, 0.0, 0.0),
-                1.0,
-                0.5
-            ),
-            Sphere::new(
-                Vec3::new(10.0, 1.0, 0.5),
-                Vec3::new(0.0, 0.5, 0.5),
-                1.0,
-                0.2
-            ),
-            Sphere::new(
-                Vec3::new(11.5, -1.1, 0.5),
-                Vec3::new(1.0, 1.0, 0.0),
-                0.7,
-                0.2
-            ),
-            Sphere::new(
-                Vec3::new(10.0, 0.0, -20000.0),
-                Vec3::new(1.0, 1.0, 1.0),
-                19999.0,
-                0.2
-            ),
-            Sphere::new(
-                Vec3::new(15.0, 3.0, 1.0),
-                Vec3::new(1.0, 1.0, 1.0),
-                2.5,
-                0.8
-            ),
-            Sphere::new(
-                Vec3::new(10.0, -3.0, 1.0),
-                Vec3::new(1.0, 1.0, 1.0),
-                1.5,
-                0.8
-            ),
-            Sphere::new(
-                Vec3::new(5.0, -2.0, -1.0),
-                Vec3::new(0.0, 0.0, 1.0),
-                1.0,
-                0.0
-            ),
-            Sphere::new(
-                Vec3::new(5.0, 0.0, -1.0),
-                Vec3::new(0.0, 0.0, 1.0),
-                1.0,
-                0.0
-            ),
-            // Sphere::new_opaque(
-            //     Vec3::new(7.0, 1.0, 4.0),
+            // Sphere::new(
+            //     Vec3::new(10.0, 0.5, 0.5),
+            //     Vec3::new(1.0, 0.0, 0.0),
             //     1.0,
+            //     0.5
+            // ),
+            // Sphere::new(
+            //     Vec3::new(10.0, 1.0, 0.5),
+            //     Vec3::new(0.0, 0.5, 0.5),
+            //     1.0,
+            //     0.2
+            // ),
+            // Sphere::new(
+            //     Vec3::new(11.5, -1.1, 0.5),
+            //     Vec3::new(1.0, 1.0, 0.0),
+            //     0.7,
+            //     0.2
+            // ),
+            // Sphere::new(
+            //     Vec3::new(10.0, 0.0, -20000.0),
+            //     Vec3::new(1.0, 1.0, 1.0),
+            //     19999.0,
+            //     0.2
+            // ),
+            // Sphere::new(
+            //     Vec3::new(15.0, 3.0, 1.0),
+            //     Vec3::new(1.0, 1.0, 1.0),
+            //     2.5,
+            //     0.8
+            // ),
+            // Sphere::new(
+            //     Vec3::new(10.0, -3.0, 1.0),
+            //     Vec3::new(1.0, 1.0, 1.0),
+            //     1.5,
+            //     0.8
+            // ),
+            // Sphere::new(
+            //     Vec3::new(5.0, -2.0, -1.0),
+            //     Vec3::new(0.0, 0.0, 1.0),
+            //     1.0,
+            //     0.0
+            // ),
+            // Sphere::new(
+            //     Vec3::new(5.0, 0.0, -1.0),
+            //     Vec3::new(0.0, 0.0, 1.0),
+            //     1.0,
+            //     0.0
+            // ),
+            // // Sphere::new_opaque(
+            // //     Vec3::new(7.0, 1.0, 4.0),
+            // //     1.0,
+            // //     1.5,
+            // // ),
+            // Sphere::new_opaque(
+            //     Vec3::new(6.0, 0.5, 1.0),
+            //     0.6,
             //     1.5,
             // ),
+            Sphere::new(
+                Vec3::new(0.0, 10010.0, 0.0),
+                Vec3::new(1.0, 0.5, 0.0),
+                10000.0,
+                0.0,
+            ),
+            Sphere::new(
+                Vec3::new(0.0, -10000.0, 0.0),
+                Vec3::new(0.5, 0.5, 1.0),
+                10000.0,
+                0.0,
+            ),
+            Sphere::new(
+                Vec3::new(0.0, 0.0, 10010.0),
+                Vec3::new(1.0, 1.0, 1.0),
+                10000.0,
+                0.0,
+            ),
+            Sphere::new(
+                Vec3::new(0.0, 0.0, -10000.0),
+                Vec3::new(1.0, 1.0, 1.0),
+                10000.0,
+                0.0,
+            ),
+            Sphere::new(
+                Vec3::new(10010.0, 0.0, 0.0),
+                Vec3::new(0.5, 1.0, 0.5),
+                10000.0,
+                1.0,
+            ),
+            Sphere::new(
+                Vec3::new(-10000.0, 0.0, 0.0),
+                Vec3::new(0.1, 0.1, 0.1),
+                10000.0,
+                0.0,
+            ),
+
+            Sphere::new(
+                Vec3::new(5.0, 3.0, 1.0),
+                Vec3::new(1.0, 1.0, 1.0),
+                1.0,
+                0.9,
+            ),
             Sphere::new_opaque(
-                Vec3::new(6.0, 0.5, 1.0),
-                0.6,
+                Vec3::new(5.0, 7.0, 1.0),
+                // Vec3::new(0.3, 0.9, 0.2),
+                1.0,
                 1.5,
             ),
+            // Sphere::new(
+            //     Vec3::new(1010.0, 0.0, 0.0),
+            //     Vec3::new(0.0, 0.0, 1.0),
+            //     1000.0,
+            //     1.0,
+            // ),
         ];
         World {
             spheres,
-            light_point: Vec3::new(5.0, 10.0, 20.0),
+            // light_point: Vec3::new(5.0, 5.0, 5.0),
+            light_point: Vec3::new(5.0, 5.0, 9.0),
         }
     }
 
     pub fn point_sees_light(&self, point: &Vec3, sphere: &Sphere) -> f64 {
         let point_to_sphere = sphere.position.substract(point).normalized();
+        let point_to_sphere_distance = sphere.position.substract(point).length();
         let normal1 = point_to_sphere.cross_product(&Vec3::new(1.0, 0.0, 0.0));
         let normal2 = point_to_sphere.cross_product(&normal1);
 
@@ -280,8 +337,8 @@ impl World {
                         point.clone(),
                         ray_direction.clone(),
                     )) {
-                        Some(_) => {
-                            if !sphere.opaque {
+                        Some((distance, _, _, _)) => {
+                            if !sphere.opaque && distance < point_to_sphere_distance {
                                 works = false;
                                 break;
                             }
@@ -398,7 +455,7 @@ impl World {
                     &Sphere::new(
                         self.light_point.clone(),
                         Vec3::new(1.0, 1.0, 1.0),
-                        3.0,
+                        1.0,
                         1.0
                     )
                 );
@@ -438,8 +495,8 @@ impl Camera {
     }
 
     pub fn see(&self, world: &World) {
-        let x_res = 100 * 20;
-        let y_res = 75 * 20;
+        let x_res = 100 * 10;
+        let y_res = 75 * 10;
 
         let data_size = x_res * y_res * 3;
         let file_size = data_size + 54;
@@ -466,7 +523,7 @@ impl Camera {
                 z_angle *= y_res as f64 / x_res as f64;
                 // Angles from -0.5 to 0.5
 
-                let zoom: f64 = 0.5;
+                let zoom: f64 = 2.5;
 
                 let x_perpendicular = self.direction
                     .cross_product(&Vec3::new(0.0, 0.0, 1.0));
@@ -479,7 +536,7 @@ impl Camera {
                     .add(&z_perpendicular.multiply(z_angle * zoom));
 
                 let ray = Ray::new(self.origin.clone(), new_direction.normalized());
-                let color = world.calc_ray(&ray, 4);
+                let color = world.calc_ray(&ray, 5);
 
                 let i = x;
                 let j = y_res - y - 1;
@@ -535,8 +592,11 @@ impl Camera {
 
 fn main() {
     let camera = Camera::new(
-        Vec3::new(-13.0, 8.0, 7.0),
-        Vec3::new(1.0, -0.33, -0.3).normalized(),
+        Vec3::new(1.0, 5.0, 1.5),
+        Vec3::new(1.0, 0.0, -0.0),
+        // Vec3::new(1.0, 9.0, 9.0),
+        // Vec3::new(1.0, -1.0, -1.0),
+        // Vec3::new(1.0, -0.33, -0.3).normalized(),
     );
 
     let world = World::new();
