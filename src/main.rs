@@ -3,6 +3,7 @@ extern crate rand;
 use std::fs::File;
 use std::io::prelude::*;
 use rayon::prelude::*;
+use rand::prelude::*;
 
 
 #[derive(Clone, Debug)]
@@ -38,6 +39,14 @@ impl Vec3 {
             self.x * value,
             self.y * value,
             self.z * value,
+        )
+    }
+
+    pub fn multiplyv(&self, other: &Vec3) -> Vec3 {
+        Vec3::new(
+            self.x * other.x,
+            self.y * other.y,
+            self.z * other.z,
         )
     }
 
@@ -109,6 +118,7 @@ struct Sphere {
     reflective: f64,
     opaque: bool,
     refractive_ratio: f64,
+    emitter: bool,
 }
 
 impl Sphere {
@@ -119,18 +129,33 @@ impl Sphere {
             radius,
             reflective,
             opaque: false,
-            refractive_ratio: 1.0
+            refractive_ratio: 1.0,
+            emitter: false,
         }
     }
 
-    pub fn new_opaque(position: Vec3, radius: f64, refractive_ratio: f64) -> Sphere {
+    pub fn new_emitter(position: Vec3, color: Vec3, radius: f64) -> Sphere {
+        Sphere {
+            position,
+            color,
+            radius,
+            reflective: 0.0,
+            opaque: false,
+            refractive_ratio: 1.0,
+            emitter: true,
+        }
+    }
+
+    pub fn new_opaque(position: Vec3, radius: f64, refractive_ratio: f64, reflective: f64) -> Sphere {
         Sphere {
             position,
             color: Vec3::new(1.0, 1.0, 1.0),
             radius,
-            reflective: 0.0,
+            // reflective: 0.0,
+            reflective,
             opaque: true,
-            refractive_ratio
+            refractive_ratio,
+            emitter: false,
         }
     }
 
@@ -181,70 +206,13 @@ impl Ray {
 
 struct World {
     spheres: Vec<Sphere>,
-    light_point: Vec3,
+    // light_point: Vec3,
 }
 
 impl World {
     pub fn new() -> World {
         let spheres = vec![
-            // Sphere::new(
-            //     Vec3::new(10.0, 0.5, 0.5),
-            //     Vec3::new(1.0, 0.0, 0.0),
-            //     1.0,
-            //     0.5
-            // ),
-            // Sphere::new(
-            //     Vec3::new(10.0, 1.0, 0.5),
-            //     Vec3::new(0.0, 0.5, 0.5),
-            //     1.0,
-            //     0.2
-            // ),
-            // Sphere::new(
-            //     Vec3::new(11.5, -1.1, 0.5),
-            //     Vec3::new(1.0, 1.0, 0.0),
-            //     0.7,
-            //     0.2
-            // ),
-            // Sphere::new(
-            //     Vec3::new(10.0, 0.0, -20000.0),
-            //     Vec3::new(1.0, 1.0, 1.0),
-            //     19999.0,
-            //     0.2
-            // ),
-            // Sphere::new(
-            //     Vec3::new(15.0, 3.0, 1.0),
-            //     Vec3::new(1.0, 1.0, 1.0),
-            //     2.5,
-            //     0.8
-            // ),
-            // Sphere::new(
-            //     Vec3::new(10.0, -3.0, 1.0),
-            //     Vec3::new(1.0, 1.0, 1.0),
-            //     1.5,
-            //     0.8
-            // ),
-            // Sphere::new(
-            //     Vec3::new(5.0, -2.0, -1.0),
-            //     Vec3::new(0.0, 0.0, 1.0),
-            //     1.0,
-            //     0.0
-            // ),
-            // Sphere::new(
-            //     Vec3::new(5.0, 0.0, -1.0),
-            //     Vec3::new(0.0, 0.0, 1.0),
-            //     1.0,
-            //     0.0
-            // ),
-            // // Sphere::new_opaque(
-            // //     Vec3::new(7.0, 1.0, 4.0),
-            // //     1.0,
-            // //     1.5,
-            // // ),
-            // Sphere::new_opaque(
-            //     Vec3::new(6.0, 0.5, 1.0),
-            //     0.6,
-            //     1.5,
-            // ),
+            // Box
             Sphere::new(
                 Vec3::new(0.0, 10010.0, 0.0),
                 Vec3::new(1.0, 0.5, 0.0),
@@ -271,9 +239,9 @@ impl World {
             ),
             Sphere::new(
                 Vec3::new(10010.0, 0.0, 0.0),
-                Vec3::new(0.5, 1.0, 0.5),
+                Vec3::new(0.5, 0.5, 0.5),
                 10000.0,
-                1.0,
+                0.7,
             ),
             Sphere::new(
                 Vec3::new(-10000.0, 0.0, 0.0),
@@ -282,6 +250,7 @@ impl World {
                 0.0,
             ),
 
+            // Balls
             Sphere::new(
                 Vec3::new(5.0, 3.0, 1.0),
                 Vec3::new(1.0, 1.0, 1.0),
@@ -290,71 +259,71 @@ impl World {
             ),
             Sphere::new_opaque(
                 Vec3::new(5.0, 7.0, 1.0),
-                // Vec3::new(0.3, 0.9, 0.2),
                 1.0,
                 1.5,
+                0.1,
             ),
-            // Sphere::new(
-            //     Vec3::new(1010.0, 0.0, 0.0),
-            //     Vec3::new(0.0, 0.0, 1.0),
-            //     1000.0,
-            //     1.0,
-            // ),
+
+            // Emitter
+            Sphere::new_emitter(
+                Vec3::new(5.0, 5.0, 13.0),
+                Vec3::new(1.0, 1.0, 1.0),
+                4.0,
+            )
         ];
         World {
             spheres,
-            // light_point: Vec3::new(5.0, 5.0, 5.0),
-            light_point: Vec3::new(5.0, 5.0, 9.0),
+            // light_point: Vec3::new(5.0, 5.0, 7.0),
         }
     }
 
-    pub fn point_sees_light(&self, point: &Vec3, sphere: &Sphere) -> f64 {
-        let point_to_sphere = sphere.position.substract(point).normalized();
-        let point_to_sphere_distance = sphere.position.substract(point).length();
-        let normal1 = point_to_sphere.cross_product(&Vec3::new(1.0, 0.0, 0.0));
-        let normal2 = point_to_sphere.cross_product(&normal1);
-
-        let mut sum = 0;
-        let mut total = 0;
-        for (ring_size, count_in_ring) in [
-            (0.0, 1),
-            (0.333, 7),
-            (0.666, 15),
-            (1.0, 30)
-        ].iter() {
-            for i in 0..*count_in_ring {
-                total += 1;
-                let multiplier = (i as f64) / (*count_in_ring as f64) * 3.14159 * 2.0;
-                let light_point = sphere.position
-                    .add(&normal1.multiply((multiplier).cos() * sphere.radius * ring_size))
-                    .add(&normal2.multiply((multiplier).sin() * sphere.radius * ring_size));
-
-                let ray_direction = light_point.substract(point).normalized();
-
-                let mut works = true;
-                for sphere in self.spheres.iter() {
-                    match sphere.intersects(&Ray::new(
-                        point.clone(),
-                        ray_direction.clone(),
-                    )) {
-                        Some((distance, _, _, _)) => {
-                            if !sphere.opaque && distance < point_to_sphere_distance {
-                                works = false;
-                                break;
-                            }
-                        },
-                        _ => {
-                        }
-                    }
-                }
-                if works {
-                    sum += 1;
-                }
-            }
-
-        }
-        sum as f64 / total as f64
-    }
+    // pub fn point_sees_light(&self, point: &Vec3, sphere: &Sphere) -> f64 {
+    //     let point_to_sphere = sphere.position.substract(point).normalized();
+    //     let point_to_sphere_distance = sphere.position.substract(point).length();
+    //     let normal1 = point_to_sphere.cross_product(&Vec3::new(1.0, 0.0, 0.0));
+    //     let normal2 = point_to_sphere.cross_product(&normal1);
+    //
+    //     let mut sum = 0;
+    //     let mut total = 0;
+    //     for (ring_size, count_in_ring) in [
+    //         (0.0, 1),
+    //         (0.333, 7),
+    //         (0.666, 15),
+    //         (1.0, 30)
+    //     ].iter() {
+    //         for i in 0..*count_in_ring {
+    //             total += 1;
+    //             let multiplier = (i as f64) / (*count_in_ring as f64) * 3.14159 * 2.0;
+    //             let light_point = sphere.position
+    //                 .add(&normal1.multiply((multiplier).cos() * sphere.radius * ring_size))
+    //                 .add(&normal2.multiply((multiplier).sin() * sphere.radius * ring_size));
+    //
+    //             let ray_direction = light_point.substract(point).normalized();
+    //
+    //             let mut works = true;
+    //             for sphere in self.spheres.iter() {
+    //                 match sphere.intersects(&Ray::new(
+    //                     point.clone(),
+    //                     ray_direction.clone(),
+    //                 )) {
+    //                     Some((distance, _, _, _)) => {
+    //                         if !sphere.opaque && distance < point_to_sphere_distance {
+    //                             works = false;
+    //                             break;
+    //                         }
+    //                     },
+    //                     _ => {
+    //                     }
+    //                 }
+    //             }
+    //             if works {
+    //                 sum += 1;
+    //             }
+    //         }
+    //
+    //     }
+    //     sum as f64 / total as f64
+    // }
 
     // pub fn ray_sees_light(&self, ray: &Ray) -> bool {
     //     for sphere in self.spheres.iter() {
@@ -369,6 +338,10 @@ impl World {
     // }
 
     pub fn calc_ray(&self, ray: &Ray, depth: i32) -> Vec3{
+        if depth == 0 {
+            return Vec3::new(0.0, 0.0, 0.0);
+        }
+
         // Find what ray intersects
         let mut closest_sphere : Option<(f64, Vec3, Vec3, &Sphere, bool)> = None;
         for sphere in self.spheres.iter() {
@@ -401,20 +374,40 @@ impl World {
             }
         }
 
+        let mut rng = rand::thread_rng();
+
         // Get the color based on match
         match closest_sphere {
             Some((_, new_ray_exact_position, circle_normal_vec, sphere, is_inside)) => {
+                if sphere.emitter {
+                    return sphere.color.clone()
+                }
+
                 let normal_vec =
                     if is_inside {circle_normal_vec.multiply(-1.0)}
                     else {circle_normal_vec};
+                let new_ray_position = new_ray_exact_position
+                    .add(&normal_vec.multiply(0.001));
+
+                if sphere.reflective >= 0.0 && rng.gen::<f64>() < sphere.reflective {
+                    let new_ray_direction = ray.direction.substract(&normal_vec.multiply(
+                        ray.direction.dot_product(&normal_vec) * 2.0)
+                    ).normalized();
+                    let new_ray = Ray::new(new_ray_position.clone(), new_ray_direction);
+
+                    return self
+                        .calc_ray(&new_ray, depth - 1)
+                        // .multiply(sphere.reflective)
+                        // .add(&diffuse_color.multiply(1.0 - sphere.reflective))
+                }
 
                 if sphere.opaque {
                     let new_ray_position = new_ray_exact_position
-                        .add(&normal_vec.multiply(-0.001));
+                        .add(&normal_vec.multiply(-0.001)); // Must be negative so we can hop through the sphere
                     let refractive_ratio =
                         if is_inside {sphere.refractive_ratio}
                         else {1.0/sphere.refractive_ratio};
-                    let c = ray.direction.dot_product(&normal_vec.multiply(-1.0));// Todo -1 missa?
+                    let c = ray.direction.dot_product(&normal_vec.multiply(-1.0));
                     let new_ray_direction =
                         ray.direction.multiply(refractive_ratio)
                         .add(
@@ -432,47 +425,73 @@ impl World {
                     return self.calc_ray(&new_ray, depth - 1);
                 }
 
-                let new_ray_position = new_ray_exact_position
-                    .add(&normal_vec.multiply(0.001));
-
-                let new_ray_direction = ray.direction.substract(&normal_vec.multiply(
-                    ray.direction.dot_product(&normal_vec) * 2.0)
-                ).normalized();
-
-                let new_ray = Ray::new(new_ray_position.clone(), new_ray_direction);
-
-                let point_to_light = Ray::new(
-                    new_ray_position.clone(),
-                    self.light_point.substract(&new_ray_position).normalized()
+                let mut new_hemisphere_vector = Vec3::new(
+                    rng.gen::<f64>() - 0.5,
+                    rng.gen::<f64>() - 0.5,
+                    rng.gen::<f64>() - 0.5,
                 );
-
-                let to_light_angle =
-                    point_to_light.direction
-                    .angle_between(&new_ray.direction);
-
-                let light_multiplier = self.point_sees_light(
-                    &new_ray_position,
-                    &Sphere::new(
-                        self.light_point.clone(),
-                        Vec3::new(1.0, 1.0, 1.0),
-                        1.0,
-                        1.0
-                    )
-                );
-
-                let diffuse_color = sphere
-                    .color.clone()
-                    .multiply(1.0 - to_light_angle / 3.14159)
-                    .multiply(light_multiplier * 0.8 + 0.2);
-
-                if sphere.reflective > 0.0 && depth > 0 {
-                    return self
-                        .calc_ray(&new_ray, depth - 1)
-                        .multiply(sphere.reflective)
-                        .add(&diffuse_color.multiply(1.0 - sphere.reflective))
+                while new_hemisphere_vector.length() > 1.0 {
+                    new_hemisphere_vector.x = rng.gen::<f64>();
+                    new_hemisphere_vector.y = rng.gen::<f64>();
+                    new_hemisphere_vector.z = rng.gen::<f64>();
                 }
 
-                return diffuse_color
+                if new_hemisphere_vector.angle_between(&normal_vec) > 3.14159 / 2.0 {
+                    new_hemisphere_vector.x = -new_hemisphere_vector.x;
+                    new_hemisphere_vector.y = -new_hemisphere_vector.y;
+                    new_hemisphere_vector.z = -new_hemisphere_vector.z;
+                }
+
+                new_hemisphere_vector = new_hemisphere_vector.normalized();
+
+                let new_ray = Ray::new(
+                    new_ray_position.clone(),
+                    new_hemisphere_vector
+                );
+
+                let rec_color = self.calc_ray(&new_ray, depth - 1);
+
+                return sphere.color.multiplyv(&rec_color);
+
+                return Vec3::new(0.0, 0.0, 0.0);
+
+                //
+                //
+                //
+                //
+                //
+                // let point_to_light = Ray::new(
+                //     new_ray_position.clone(),
+                //     self.light_point.substract(&new_ray_position).normalized()
+                // );
+                //
+                // let to_light_angle =
+                //     point_to_light.direction
+                //     .angle_between(&new_ray.direction);
+                //
+                // let light_multiplier = self.point_sees_light(
+                //     &new_ray_position,
+                //     &Sphere::new(
+                //         self.light_point.clone(),
+                //         Vec3::new(1.0, 1.0, 1.0),
+                //         1.0,
+                //         1.0
+                //     )
+                // );
+                //
+                // let diffuse_color = sphere
+                //     .color.clone()
+                //     .multiply(1.0 - to_light_angle / 3.14159)
+                //     .multiply(light_multiplier * 0.8 + 0.2);
+                //
+                // if sphere.reflective > 0.0 && depth > 0 {
+                //     return self
+                //         .calc_ray(&new_ray, depth - 1)
+                //         .multiply(sphere.reflective)
+                //         .add(&diffuse_color.multiply(1.0 - sphere.reflective))
+                // }
+                //
+                // return diffuse_color
             },
             _ => {
                 return Vec3::new(0.0, 0.0, 0.0)
@@ -495,8 +514,8 @@ impl Camera {
     }
 
     pub fn see(&self, world: &World) {
-        let x_res = 100 * 10;
-        let y_res = 75 * 10;
+        let x_res = 100 * 20;
+        let y_res = 75 * 20;
 
         let data_size = x_res * y_res * 3;
         let file_size = data_size + 54;
@@ -509,21 +528,25 @@ impl Camera {
             }
         }
 
-        const THREAD_COUNT: i32 = 16;
-        let vec: Vec<i32> = (0..THREAD_COUNT).collect();
-        let all_binary_datas: Vec<Vec<u8>> = vec.par_iter().map(|i| {
+        // 0m10.433s
+
+        const THREAD_COUNT: i64 = 16;
+        const PER_PIXEL_STEPS: i64 = 50;
+        let zoom: f64 = 2.5;
+
+        let vec: Vec<i64> = (0..THREAD_COUNT).collect();
+        let all_binary_datas: Vec<Vec<u8>> = vec.par_iter().map(|thread_index| {
             let mut binary_data: Vec<u8> = vec![0; x_res * y_res * 3];
 
             let thread_len = xy_pairs.len() / THREAD_COUNT as usize;
-            let xy_pairs_part = &xy_pairs[thread_len * *i as usize..thread_len * (*i as usize + 1)];
 
-            for (x, y) in xy_pairs_part.iter() {
-                let x_angle: f64 = -(*x as f64 - (x_res as f64 - 1.0) / 2.0) / (x_res as f64 - 1.0);
-                let mut z_angle: f64 = (*y as f64 - (y_res as f64 - 1.0) / 2.0) / (y_res as f64  - 1.0);
+            for pixel_index in 0..thread_len {
+                let (x, y) = xy_pairs[pixel_index * THREAD_COUNT as usize + *thread_index as usize];
+
+                let x_angle: f64 = -(x as f64 - (x_res as f64 - 1.0) / 2.0) / (x_res as f64 - 1.0);
+                let mut z_angle: f64 = (y as f64 - (y_res as f64 - 1.0) / 2.0) / (y_res as f64  - 1.0);
                 z_angle *= y_res as f64 / x_res as f64;
-                // Angles from -0.5 to 0.5
-
-                let zoom: f64 = 2.5;
+                // x_angle goes from -0.5 to 0.5
 
                 let x_perpendicular = self.direction
                     .cross_product(&Vec3::new(0.0, 0.0, 1.0));
@@ -536,7 +559,13 @@ impl Camera {
                     .add(&z_perpendicular.multiply(z_angle * zoom));
 
                 let ray = Ray::new(self.origin.clone(), new_direction.normalized());
-                let color = world.calc_ray(&ray, 5);
+
+                let mut color = Vec3::new(0.0, 0.0, 0.0);
+                for _ in 0..PER_PIXEL_STEPS {
+                    let step_color = world.calc_ray(&ray, 20);
+                    color = color.add(&step_color);
+                }
+                color = color.multiply(7.5 * 1.0 / PER_PIXEL_STEPS as f64);
 
                 let i = x;
                 let j = y_res - y - 1;
