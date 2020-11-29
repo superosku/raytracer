@@ -6,6 +6,10 @@ use rayon::prelude::*;
 use rand::prelude::*;
 
 
+const THREAD_COUNT: i64 = 16;
+const PER_PIXEL_STEPS: i64 = 1000;
+
+
 #[derive(Clone, Debug)]
 struct Vec3 {
     x: f64,
@@ -25,14 +29,6 @@ impl Vec3 {
             self.z + other.z,
         )
     }
-
-    // pub fn addf(&self, value: f64) -> Vec3 {
-    //     Vec3::new(
-    //         self.x + value,
-    //         self.y + value,
-    //         self.z + value,
-    //     )
-    // }
 
     pub fn multiply(&self, value: f64) -> Vec3 {
         Vec3::new(
@@ -67,34 +63,9 @@ impl Vec3 {
         )
     }
 
-    // pub fn rotate_z(&self, angle: f64) -> Vec3 {
-    //     Vec3::new(
-    //         self.x * angle.cos() - self.y * angle.sin(),
-    //         self.x * angle.sin() + self.y * angle.cos(),
-    //         self.z
-    //     )
-    // }
-
-    // pub fn rotate_y(&self, angle: f64) -> Vec3 {
-    //     Vec3::new(
-    //         self.x * angle.cos() + self.z * angle.sin(),
-    //         self.y,
-    //         - self.x * angle.sin() + self.z * angle.cos(),
-    //     )
-    // }
-
     pub fn dot_product(&self, other: &Vec3) -> f64 {
         self.x * other.x + self.y * other.y + self.z * other.z
     }
-
-    // pub fn get_normal(&self) -> Vec3 {
-    //     Vec3::new(
-    //         -self.z,
-    //         // self.x,
-    //         self.y,
-    //         self.x,
-    //     )
-    // }
 
     pub fn angle_between(&self, other: &Vec3) -> f64 {
         (
@@ -206,7 +177,6 @@ impl Ray {
 
 struct World {
     spheres: Vec<Sphere>,
-    // light_point: Vec3,
 }
 
 impl World {
@@ -273,69 +243,8 @@ impl World {
         ];
         World {
             spheres,
-            // light_point: Vec3::new(5.0, 5.0, 7.0),
         }
     }
-
-    // pub fn point_sees_light(&self, point: &Vec3, sphere: &Sphere) -> f64 {
-    //     let point_to_sphere = sphere.position.substract(point).normalized();
-    //     let point_to_sphere_distance = sphere.position.substract(point).length();
-    //     let normal1 = point_to_sphere.cross_product(&Vec3::new(1.0, 0.0, 0.0));
-    //     let normal2 = point_to_sphere.cross_product(&normal1);
-    //
-    //     let mut sum = 0;
-    //     let mut total = 0;
-    //     for (ring_size, count_in_ring) in [
-    //         (0.0, 1),
-    //         (0.333, 7),
-    //         (0.666, 15),
-    //         (1.0, 30)
-    //     ].iter() {
-    //         for i in 0..*count_in_ring {
-    //             total += 1;
-    //             let multiplier = (i as f64) / (*count_in_ring as f64) * 3.14159 * 2.0;
-    //             let light_point = sphere.position
-    //                 .add(&normal1.multiply((multiplier).cos() * sphere.radius * ring_size))
-    //                 .add(&normal2.multiply((multiplier).sin() * sphere.radius * ring_size));
-    //
-    //             let ray_direction = light_point.substract(point).normalized();
-    //
-    //             let mut works = true;
-    //             for sphere in self.spheres.iter() {
-    //                 match sphere.intersects(&Ray::new(
-    //                     point.clone(),
-    //                     ray_direction.clone(),
-    //                 )) {
-    //                     Some((distance, _, _, _)) => {
-    //                         if !sphere.opaque && distance < point_to_sphere_distance {
-    //                             works = false;
-    //                             break;
-    //                         }
-    //                     },
-    //                     _ => {
-    //                     }
-    //                 }
-    //             }
-    //             if works {
-    //                 sum += 1;
-    //             }
-    //         }
-    //
-    //     }
-    //     sum as f64 / total as f64
-    // }
-
-    // pub fn ray_sees_light(&self, ray: &Ray) -> bool {
-    //     for sphere in self.spheres.iter() {
-    //         match sphere.intersects(ray) {
-    //             Some(_) => {
-    //                 return false
-    //             },
-    //             _ => {}
-    //         }
-    //     }
-    //     return true
-    // }
 
     pub fn calc_ray(&self, ray: &Ray, depth: i32) -> Vec3{
         if depth == 0 {
@@ -454,44 +363,6 @@ impl World {
                 return sphere.color.multiplyv(&rec_color);
 
                 return Vec3::new(0.0, 0.0, 0.0);
-
-                //
-                //
-                //
-                //
-                //
-                // let point_to_light = Ray::new(
-                //     new_ray_position.clone(),
-                //     self.light_point.substract(&new_ray_position).normalized()
-                // );
-                //
-                // let to_light_angle =
-                //     point_to_light.direction
-                //     .angle_between(&new_ray.direction);
-                //
-                // let light_multiplier = self.point_sees_light(
-                //     &new_ray_position,
-                //     &Sphere::new(
-                //         self.light_point.clone(),
-                //         Vec3::new(1.0, 1.0, 1.0),
-                //         1.0,
-                //         1.0
-                //     )
-                // );
-                //
-                // let diffuse_color = sphere
-                //     .color.clone()
-                //     .multiply(1.0 - to_light_angle / 3.14159)
-                //     .multiply(light_multiplier * 0.8 + 0.2);
-                //
-                // if sphere.reflective > 0.0 && depth > 0 {
-                //     return self
-                //         .calc_ray(&new_ray, depth - 1)
-                //         .multiply(sphere.reflective)
-                //         .add(&diffuse_color.multiply(1.0 - sphere.reflective))
-                // }
-                //
-                // return diffuse_color
             },
             _ => {
                 return Vec3::new(0.0, 0.0, 0.0)
@@ -513,13 +384,8 @@ impl Camera {
         }
     }
 
-    pub fn see(&self, world: &World) {
-        let x_res = 100 * 20;
-        let y_res = 75 * 20;
-
-        let data_size = x_res * y_res * 3;
-        let file_size = data_size + 54;
-        let mut collected_binary_data: Vec<u8> = vec![0; x_res * y_res * 3];
+    pub fn see(&self, world: &World, x_res: usize, y_res: usize) -> Vec<f64> {
+        let mut collected_colors: Vec<f64> = vec![0.0; x_res * y_res * 3];
 
         let mut xy_pairs : Vec<(usize, usize)> = Vec::new();
         for y in 0..y_res {
@@ -528,15 +394,11 @@ impl Camera {
             }
         }
 
-        // 0m10.433s
-
-        const THREAD_COUNT: i64 = 16;
-        const PER_PIXEL_STEPS: i64 = 50;
         let zoom: f64 = 2.5;
 
         let vec: Vec<i64> = (0..THREAD_COUNT).collect();
-        let all_binary_datas: Vec<Vec<u8>> = vec.par_iter().map(|thread_index| {
-            let mut binary_data: Vec<u8> = vec![0; x_res * y_res * 3];
+        let all_color_datas: Vec<Vec<f64>> = vec.par_iter().map(|thread_index| {
+            let mut color_data: Vec<f64> = vec![0.0; x_res * y_res * 3];
 
             let thread_len = xy_pairs.len() / THREAD_COUNT as usize;
 
@@ -570,23 +432,64 @@ impl Camera {
                 let i = x;
                 let j = y_res - y - 1;
 
-                binary_data[(i + j * x_res) * 3 + 0] = (color.z * 255.0) as u8;
-                binary_data[(i + j * x_res) * 3 + 1] = (color.y * 255.0) as u8;
-                binary_data[(i + j * x_res) * 3 + 2] = (color.x * 255.0) as u8;
+                color_data[(i + j * x_res) * 3 + 0] = color.z;
+                color_data[(i + j * x_res) * 3 + 1] = color.y;
+                color_data[(i + j * x_res) * 3 + 2] = color.x;
             }
-            return binary_data
+            return color_data;
         }).collect();
 
         for (x, y) in xy_pairs.iter() {
-            for binary_data in all_binary_datas.iter() {
+            for color_data in all_color_datas.iter() {
                 let index = (x + y * x_res) * 3;
-                collected_binary_data[index + 0] = binary_data[index + 0].max(collected_binary_data[index + 0]);
-                collected_binary_data[index + 1] = binary_data[index + 1].max(collected_binary_data[index + 1]);
-                collected_binary_data[index + 2] = binary_data[index + 2].max(collected_binary_data[index + 2]);
+                collected_colors[index + 0] = color_data[index + 0].max(collected_colors[index + 0]);
+                collected_colors[index + 1] = color_data[index + 1].max(collected_colors[index + 1]);
+                collected_colors[index + 2] = color_data[index + 2].max(collected_colors[index + 2]);
             }
         }
 
-        match File::create("kuva.bmp") {
+        collected_colors
+
+    }
+}
+
+fn main() {
+    let camera = Camera::new(
+        Vec3::new(1.0, 5.0, 1.5),
+        Vec3::new(1.0, 0.0, -0.0),
+    );
+
+    let world = World::new();
+
+    let x_res = 100 * 20;
+    let y_res = 75 * 20;
+
+    let mut all_colors: Vec<Vec<f64>> = Vec::new();
+    let mut loop_index = 0;
+
+    while true {
+        loop_index += 1;
+
+        let colors =  camera.see(&world, x_res, y_res);
+        all_colors.push(colors);
+
+        let x_res: usize = 100 * 20;
+        let y_res: usize = 75 * 20;
+
+        let data_size = x_res * y_res * 3;
+        let file_size = data_size + 54;
+
+        let mut binary_data: Vec<u8> = vec![0; data_size];
+        for i in 0..data_size {
+            let mut pixel_colo_sum = 0.0;
+            for colors in all_colors.iter() {
+                pixel_colo_sum += colors[i]
+            }
+            binary_data[i] = (pixel_colo_sum * 255.0 / all_colors.len() as f64) as u8;
+        }
+
+        let file_name = format!("pic-{}.bmp", loop_index * PER_PIXEL_STEPS);
+        match File::create(file_name) {
             Ok(mut file) => {
                 file.write_all(&[
                     b'B', b'M',
@@ -612,24 +515,9 @@ impl Camera {
                     0, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0,
                 ]).unwrap();
-                file.write_all(collected_binary_data.as_slice()).unwrap();
+                file.write_all(binary_data.as_slice()).unwrap();
             },
             Err(_) => {}
         }
     }
-}
-
-fn main() {
-    let camera = Camera::new(
-        Vec3::new(1.0, 5.0, 1.5),
-        Vec3::new(1.0, 0.0, -0.0),
-        // Vec3::new(1.0, 9.0, 9.0),
-        // Vec3::new(1.0, -1.0, -1.0),
-        // Vec3::new(1.0, -0.33, -0.3).normalized(),
-    );
-
-    let world = World::new();
-
-    camera.see(&world)
-    // sphere.intersects(ray);
 }
