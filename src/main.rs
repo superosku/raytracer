@@ -7,7 +7,7 @@ use rand::prelude::*;
 
 
 const THREAD_COUNT: i64 = 16;
-const PER_PIXEL_STEPS: i64 = 50;
+const PER_PIXEL_STEPS: i64 = 100;
 
 
 #[derive(Clone, Debug)]
@@ -25,18 +25,18 @@ impl Vec3 {
     pub fn new_random() -> Vec3 {
         let mut rng = rand::thread_rng();
 
-        let mut new_random = Vec3::new(
-            rng.gen::<f64>() - 0.5,
-            rng.gen::<f64>() - 0.5,
-            rng.gen::<f64>() - 0.5,
+        let mut new = Vec3::new(
+            (rng.gen::<f64>() - 0.5) * 2.0,
+            (rng.gen::<f64>() - 0.5) * 2.0,
+            (rng.gen::<f64>() - 0.5) * 2.0,
         );
-        while new_random.length() > 1.0 {
-            new_random.x = rng.gen::<f64>();
-            new_random.y = rng.gen::<f64>();
-            new_random.z = rng.gen::<f64>();
+        while new.length() > 1.0 {
+            new.x = (rng.gen::<f64>() - 0.5) * 2.0;
+            new.y = (rng.gen::<f64>() - 0.5) * 2.0;
+            new.z = (rng.gen::<f64>() - 0.5) * 2.0;
         }
 
-        return new_random.normalized()
+        new
     }
 
     pub fn add(&self, other: &Vec3) -> Vec3 {
@@ -194,6 +194,7 @@ impl Ray {
 
 struct World {
     spheres: Vec<Sphere>,
+    emitter: Sphere,
 }
 
 impl World {
@@ -253,19 +254,27 @@ impl World {
 
             // Emitter
             Sphere::new_emitter(
-                Vec3::new(5.0, 5.0, 13.0),
+                Vec3::new(5.0, 5.0, 9.0),
                 Vec3::new(1.0, 1.0, 1.0),
-                4.0,
+                1.0,
             )
         ];
         World {
             spheres,
+            emitter: Sphere::new_emitter(
+                Vec3::new(5.0, 5.0, 8.0),
+                Vec3::new(1.0, 1.0, 1.0),
+                1.0,
+            )
         }
     }
 
-    pub fn fid_intersection(&self, ray: &Ray) -> Option<(f64, Vec3, Vec3, &Sphere, bool)> {
+    pub fn fid_intersection(&self, ray: &Ray, ignore_emitters: bool) -> Option<(f64, Vec3, Vec3, &Sphere, bool)> {
         let mut closest_sphere : Option<(f64, Vec3, Vec3, &Sphere, bool)> = None;
         for sphere in self.spheres.iter() {
+            if ignore_emitters && sphere.emitter {
+                continue
+            }
             match sphere.intersects(ray) {
                 Some((distance, intersection_point, normal_vec, is_inside)) => {
                     match &closest_sphere {
@@ -298,22 +307,48 @@ impl World {
         return closest_sphere
     }
 
-    pub fn calc_ray(&self, ray: &Ray, depth: i32) -> Vec3{
+    pub fn sees(&self, point1: &Vec3, point2: &Vec3) -> bool {
+        let dist_between = point1.substract(&point2).length();
+        match self.fid_intersection(&Ray::new(
+            point1.clone(),
+            point2.substract(&point1).normalized()
+        ), true) {
+            Some((distance, _, _, sphere, _)) => {
+                // println!("FOUND INTERSECTION {} {}", distance, dist_between);
+                // println!("FOUND INTERSECTION {:?} {}", sphere.position, sphere.radius);
+                // println!("fff {} {}", distance, dist_between);
+                if distance > dist_between {
+                    return true
+                }
+                if sphere.emitter {
+                    return true
+                }
+                return false
+            },
+            _ => {
+                return true
+            }
+        }
+    }
+
+    pub fn calc_ray(&self, ray: &Ray, depth: i32, ignore_emitters: bool) -> Option<(Vec3, Vec3, bool)> {
         if depth == 0 {
-            return Vec3::new(0.0, 0.0, 0.0);
+            return Some((
+                ray.origin.clone(),
+                Vec3::new(1.0, 1.0, 1.0),
+                false
+            ))
+            // return Vec3::new(0.0, 0.0, 0.0);
         }
 
         // Find what ray intersects
-        let mut closest_sphere = self.fid_intersection(ray);
+        let mut closest_sphere = self.fid_intersection(ray, ignore_emitters);
 
         let mut rng = rand::thread_rng();
 
         // Get the color based on match
         match closest_sphere {
             Some((_, new_ray_exact_position, circle_normal_vec, sphere, is_inside)) => {
-                if sphere.emitter {
-                    return sphere.color.clone()
-                }
 
                 let normal_vec =
                     if is_inside {circle_normal_vec.multiply(-1.0)}
@@ -321,14 +356,22 @@ impl World {
                 let new_ray_position = new_ray_exact_position
                     .add(&normal_vec.multiply(0.001));
 
+                if sphere.emitter {
+                    return Some((
+                        new_ray_position,
+                        // ray.origin.clone(),
+                        sphere.color.clone(),
+                        true
+                    ))
+                }
+
                 if sphere.reflective >= 0.0 && rng.gen::<f64>() < sphere.reflective {
                     let new_ray_direction = ray.direction.substract(&normal_vec.multiply(
                         ray.direction.dot_product(&normal_vec) * 2.0)
                     ).normalized();
                     let new_ray = Ray::new(new_ray_position.clone(), new_ray_direction);
 
-                    return self
-                        .calc_ray(&new_ray, depth - 1)
+                    return self.calc_ray(&new_ray, depth, ignore_emitters)
                         // .multiply(sphere.reflective)
                         // .add(&diffuse_color.multiply(1.0 - sphere.reflective))
                 }
@@ -354,10 +397,10 @@ impl World {
                         );
                     let new_ray = Ray::new(new_ray_position.clone(), new_ray_direction);
 
-                    return self.calc_ray(&new_ray, depth - 1);
+                    return self.calc_ray(&new_ray, depth, ignore_emitters);
                 }
 
-                let mut new_hemisphere_vector = Vec3::new_random();
+                let mut new_hemisphere_vector = Vec3::new_random().normalized();
 
                 if new_hemisphere_vector.angle_between(&normal_vec) > 3.14159 / 2.0 {
                     new_hemisphere_vector.x = -new_hemisphere_vector.x;
@@ -370,14 +413,27 @@ impl World {
                     new_hemisphere_vector
                 );
 
-                let rec_color = self.calc_ray(&new_ray, depth - 1);
-
-                return sphere.color.multiplyv(&rec_color);
-
-                return Vec3::new(0.0, 0.0, 0.0);
+                match self.calc_ray(&new_ray, depth - 1, ignore_emitters) {
+                    Some((position, color, hit_light)) => {
+                        return Some((
+                            position,
+                            // sphere.color.clone()
+                            sphere.color.multiplyv(&color),
+                            hit_light
+                        ));
+                    },
+                    _ => {}
+                }
+                return None
+                // let rec_color = self.calc_ray(&new_ray, depth - 1);
+                //
+                // return sphere.color.multiplyv(&rec_color);
+                //
+                // return Vec3::new(0.0, 0.0, 0.0);
             },
             _ => {
-                return Vec3::new(0.0, 0.0, 0.0)
+                return None;
+                // return Vec3::new(0.0, 0.0, 0.0)
             }
         }
     }
@@ -396,7 +452,7 @@ impl Camera {
         }
     }
 
-    pub fn see(&self, world: &World, x_res: usize, y_res: usize) -> Vec<f64> {
+    pub fn see(&self, world: &World, x_res: usize, y_res: usize, a: i32, b: i32) -> Vec<f64> {
         let mut collected_colors: Vec<f64> = vec![0.0; x_res * y_res * 3];
 
         let mut xy_pairs : Vec<(usize, usize)> = Vec::new();
@@ -409,7 +465,11 @@ impl Camera {
         let zoom: f64 = 2.5;
 
         let vec: Vec<i64> = (0..THREAD_COUNT).collect();
+
         let all_color_datas: Vec<Vec<f64>> = vec.par_iter().map(|thread_index| {
+            // let mut total_counter = 0;
+            // let mut hit_counter = 0;
+
             let mut color_data: Vec<f64> = vec![0.0; x_res * y_res * 3];
 
             let thread_len = xy_pairs.len() / THREAD_COUNT as usize;
@@ -435,11 +495,74 @@ impl Camera {
                 let ray = Ray::new(self.origin.clone(), new_direction.normalized());
 
                 let mut color = Vec3::new(0.0, 0.0, 0.0);
+
                 for _ in 0..PER_PIXEL_STEPS {
-                    let step_color = world.calc_ray(&ray, 20);
-                    color = color.add(&step_color);
-                }
-                color = color.multiply(7.5 * 1.0 / PER_PIXEL_STEPS as f64);
+                    // let choices = vec![
+                    //     (1, 0),
+                    //     (1, 1),
+                    //     (1, 2),
+                    //     (1, 3),
+                    //     (2, 0),
+                    //     (2, 1),
+                    //     (2, 2),
+                    //     (2, 3),
+                    //     (3, 0),
+                    //     (3, 1),
+                    //     (3, 2),
+                    //     (3, 3),
+                    // ];
+                    //
+                    // for (a, b) in choices.iter() {
+                        let mut step_color = Vec3::new(0.0, 0.0, 0.0);
+                        match world.calc_ray(&ray, a, false) {
+                            Some((ray_position, color1, hit_light)) => {
+                                if hit_light {
+                                    step_color = color1;
+                                } else {
+                                    let random_emitter_pos = Vec3::new_random()
+                                        .multiply(world.emitter.radius)
+                                        .add(&world.emitter.position);
+                                    let random_emitter_dir = Vec3::new_random().normalized();
+
+                                    let emitter_ray = Ray::new(
+                                        random_emitter_pos.clone(),
+                                        random_emitter_dir,
+                                    );
+
+                                    // step_color = color1;
+
+                                    match world.calc_ray(&emitter_ray, b, true) {
+                                        Some((light_position, color2, _)) => {
+                                            let sees = world.sees(&ray_position, &light_position);
+                                            // if sees {
+                                            //     println!("asdf {} {:?} {:?}", sees, ray_position, light_position);
+                                            // }
+
+                                            // total_counter += 1;
+                                            if sees {
+                                                // hit_counter += 1;
+                                                step_color = color1.multiplyv(&color2);
+                                            } else {
+                                                step_color = Vec3::new(0.0, 0.0, 0.0);
+                                            }
+                                        },
+                                        _ => {
+                                            step_color = Vec3::new(0.0, 0.0, 0.0);
+                                        }
+                                    }
+                                }
+                            },
+                            _ => {
+                                // step_color = color1;
+                                // println!("BUU");
+                                step_color = Vec3::new(1.0, 0.0, 1.0);
+                            }
+                        }
+                        color = color.add(&step_color);
+                    }
+                // }
+
+                color = color.multiply(0.125 * 7.5 * 1.0 / PER_PIXEL_STEPS as f64);
 
                 let i = x;
                 let j = y_res - y - 1;
@@ -448,6 +571,9 @@ impl Camera {
                 color_data[(i + j * x_res) * 3 + 1] = color.y;
                 color_data[(i + j * x_res) * 3 + 2] = color.x;
             }
+
+            // println!("counters {} {} {}", hit_counter, total_counter, hit_counter as f64 / total_counter as f64);
+
             return color_data;
         }).collect();
 
@@ -473,68 +599,150 @@ fn main() {
 
     let world = World::new();
 
+    // let temp_sees = world.sees(
+    //     &Vec3::new(1.0, 1.0, 1.0),
+    //     &Vec3::new(9.0, 9.0, 9.0),
+    // );
+    //
+    // println!("TEST {}", temp_sees);
+    //
+    // return;
+
     // let x_res = 100 * 4;
     // let y_res = 75 * 4;
-    let x_res = 100 * 5;
-    let y_res = 75 * 5;
+    // let x_res = 100 * 5;
+    // let y_res = 75 * 5;
+    let x_res = 100 * 20;
+    let y_res = 75 * 20;
     let data_size = x_res * y_res * 3;
     let file_size = data_size + 54;
 
     println!("data_size {}", data_size);
     println!("file_size {}", file_size);
 
-    let mut all_colors: Vec<Vec<f64>> = Vec::new();
-    let mut loop_index = 0;
 
-    while true {
-        loop_index += 1;
+    let choices = vec![
+        // (1, 0),
+        (1, 1),
+        (1, 2),
+        (1, 3),
+        (2, 0),
+        (2, 1),
+        (2, 2),
+        (2, 3),
+        (3, 0),
+        (3, 1),
+        (3, 2),
+        // (3, 3),
+        (4, 0),
+        (4, 1),
+        // (4, 2),
+        // (4, 3),
+        // (5, 0),
+        // (5, 1),
+        // (5, 2),
+        // (5, 3),
+    ];
 
-        let colors =  camera.see(&world, x_res, y_res);
-        all_colors.push(colors);
+    let mut all_all_colors: Vec<Vec<f64>> = Vec::new();
+    for (a, b) in choices.iter() {
+        let mut all_colors: Vec<Vec<f64>> = Vec::new();
+        let mut loop_index = 0;
 
-        let mut binary_data: Vec<u8> = vec![0; data_size];
-        for i in 0..data_size {
-            let mut pixel_colo_sum = 0.0;
-            for colors in all_colors.iter() {
-                pixel_colo_sum += colors[i]
+        while true {
+            loop_index += 1;
+
+            let colors = camera.see(&world, x_res, y_res, *a, *b);
+            all_colors.push(colors.clone());
+            all_all_colors.push(colors);
+
+            let mut binary_data: Vec<u8> = vec![0; data_size];
+            for i in 0..data_size {
+                let mut pixel_colo_sum = 0.0;
+                for colors in all_colors.iter() {
+                    pixel_colo_sum += colors[i]
+                }
+                binary_data[i] = (pixel_colo_sum * 255.0 / all_colors.len() as f64) as u8;
             }
-            binary_data[i] = (pixel_colo_sum * 255.0 / all_colors.len() as f64) as u8;
+
+            let file_name = format!("outputs/pict-{}-{}-{}.bmp", a, b, loop_index * PER_PIXEL_STEPS);
+
+            println!("Writing {}", file_name);
+            match File::create(file_name) {
+                Ok(mut file) => {
+                    file.write_all(&[
+                        b'B', b'M',
+                        file_size as u8,
+                        (file_size >> 8) as u8,
+                        (file_size >> 16) as u8,
+                        (file_size >> 24) as u8,
+                        0, 0, 0, 0,
+                        54, 0, 0, 0,
+                    ]).unwrap();
+                    file.write_all(&[
+                        40, 0, 0, 0,
+                        x_res as u8,
+                        (x_res >> 8) as u8,
+                        (x_res >> 16) as u8,
+                        (x_res >> 24) as u8,
+                        y_res as u8,
+                        (y_res >> 8) as u8,
+                        (y_res >> 16) as u8,
+                        (y_res >> 24) as u8,
+                        1, 0, 24, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0,
+                    ]).unwrap();
+                    file.write_all(binary_data.as_slice()).unwrap();
+                },
+                Err(_) => {}
+            }
+
+            break;
         }
+    }
 
-        let file_name = format!("outputs/pic-{}.bmp", loop_index * PER_PIXEL_STEPS);
-
-        println!("Writing {}", file_name);
-        match File::create(file_name) {
-            Ok(mut file) => {
-                file.write_all(&[
-                    b'B', b'M',
-                    file_size as u8,
-                    (file_size >> 8) as u8,
-                    (file_size >> 16) as u8,
-                    (file_size >> 24) as u8,
-                    0, 0, 0, 0,
-                    54, 0, 0, 0,
-                ]).unwrap();
-                file.write_all(&[
-                    40, 0, 0, 0,
-                    x_res as u8,
-                    (x_res >> 8) as u8,
-                    (x_res >> 16) as u8,
-                    (x_res >> 24) as u8,
-                    y_res as u8,
-                    (y_res >> 8) as u8,
-                    (y_res >> 16) as u8,
-                    (y_res >> 24) as u8,
-                    1, 0, 24, 0,
-                    0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 0, 0, 0, 0,
-                ]).unwrap();
-                file.write_all(binary_data.as_slice()).unwrap();
-            },
-            Err(_) => {}
+    let mut binary_data: Vec<u8> = vec![0; data_size];
+    for i in 0..data_size {
+        let mut pixel_colo_sum = 0.0;
+        for colors in all_all_colors.iter() {
+            pixel_colo_sum += colors[i]
         }
+        binary_data[i] = (2.0 * pixel_colo_sum * 255.0 / all_all_colors.len() as f64) as u8;
+    }
 
-        break;
+    let file_name = format!("outputs/pict-final-{}.bmp", PER_PIXEL_STEPS);
+
+    println!("Writing {}", file_name);
+    match File::create(file_name) {
+        Ok(mut file) => {
+            file.write_all(&[
+                b'B', b'M',
+                file_size as u8,
+                (file_size >> 8) as u8,
+                (file_size >> 16) as u8,
+                (file_size >> 24) as u8,
+                0, 0, 0, 0,
+                54, 0, 0, 0,
+            ]).unwrap();
+            file.write_all(&[
+                40, 0, 0, 0,
+                x_res as u8,
+                (x_res >> 8) as u8,
+                (x_res >> 16) as u8,
+                (x_res >> 24) as u8,
+                y_res as u8,
+                (y_res >> 8) as u8,
+                (y_res >> 16) as u8,
+                (y_res >> 24) as u8,
+                1, 0, 24, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+            ]).unwrap();
+            file.write_all(binary_data.as_slice()).unwrap();
+        },
+        Err(_) => {}
     }
 }
