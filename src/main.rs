@@ -7,7 +7,7 @@ use rand::prelude::*;
 
 
 const THREAD_COUNT: i64 = 16;
-const PER_PIXEL_STEPS: i64 = 50;
+const PER_PIXEL_STEPS: i64 = 200;
 
 
 #[derive(Clone, Debug)]
@@ -228,7 +228,7 @@ impl World {
                 Vec3::new(10010.0, 0.0, 0.0),
                 Vec3::new(0.5, 0.5, 0.5),
                 10000.0,
-                0.7,
+                0.0,
             ),
             Sphere::new(
                 Vec3::new(-10000.0, 0.0, 0.0),
@@ -253,9 +253,9 @@ impl World {
 
             // Emitter
             Sphere::new_emitter(
-                Vec3::new(5.0, 5.0, 13.0),
+                Vec3::new(5.0, 5.0, 9.0),
                 Vec3::new(1.0, 1.0, 1.0),
-                4.0,
+                1.0,
             )
         ];
         World {
@@ -406,7 +406,7 @@ impl Camera {
             }
         }
 
-        let zoom: f64 = 2.5;
+        let zoom: f64 = 2.7;
 
         let vec: Vec<i64> = (0..THREAD_COUNT).collect();
         let all_color_datas: Vec<Vec<f64>> = vec.par_iter().map(|thread_index| {
@@ -439,7 +439,7 @@ impl Camera {
                     let step_color = world.calc_ray(&ray, 20);
                     color = color.add(&step_color);
                 }
-                color = color.multiply(7.5 * 1.0 / PER_PIXEL_STEPS as f64);
+                color = color.multiply(2.0 * 7.5 * 1.0 / PER_PIXEL_STEPS as f64);
 
                 let i = x;
                 let j = y_res - y - 1;
@@ -467,16 +467,16 @@ impl Camera {
 
 fn main() {
     let camera = Camera::new(
-        Vec3::new(1.0, 5.0, 1.5),
-        Vec3::new(1.0, 0.0, -0.0),
+        Vec3::new(0.1, 5.0, 1.5),
+        Vec3::new(1.0, 0.0, 0.2),
     );
 
     let world = World::new();
 
     // let x_res = 100 * 4;
     // let y_res = 75 * 4;
-    let x_res = 100 * 5;
-    let y_res = 75 * 5;
+    let x_res = 100 * 20;
+    let y_res = 75 * 20;
     let data_size = x_res * y_res * 3;
     let file_size = data_size + 54;
 
