@@ -7,7 +7,7 @@ use rand::prelude::*;
 
 
 const THREAD_COUNT: i64 = 16;
-const PER_PIXEL_STEPS: i64 = 1000;
+const PER_PIXEL_STEPS: i64 = 50;
 
 
 #[derive(Clone, Debug)]
@@ -20,6 +20,23 @@ struct Vec3 {
 impl Vec3 {
     pub fn new(x: f64, y: f64, z: f64) -> Vec3 {
         Vec3 {x, y, z}
+    }
+
+    pub fn new_random() -> Vec3 {
+        let mut rng = rand::thread_rng();
+
+        let mut new_random = Vec3::new(
+            rng.gen::<f64>() - 0.5,
+            rng.gen::<f64>() - 0.5,
+            rng.gen::<f64>() - 0.5,
+        );
+        while new_random.length() > 1.0 {
+            new_random.x = rng.gen::<f64>();
+            new_random.y = rng.gen::<f64>();
+            new_random.z = rng.gen::<f64>();
+        }
+
+        return new_random.normalized()
     }
 
     pub fn add(&self, other: &Vec3) -> Vec3 {
@@ -246,12 +263,7 @@ impl World {
         }
     }
 
-    pub fn calc_ray(&self, ray: &Ray, depth: i32) -> Vec3{
-        if depth == 0 {
-            return Vec3::new(0.0, 0.0, 0.0);
-        }
-
-        // Find what ray intersects
+    pub fn fid_intersection(&self, ray: &Ray) -> Option<(f64, Vec3, Vec3, &Sphere, bool)> {
         let mut closest_sphere : Option<(f64, Vec3, Vec3, &Sphere, bool)> = None;
         for sphere in self.spheres.iter() {
             match sphere.intersects(ray) {
@@ -282,6 +294,17 @@ impl World {
                 _ => {},
             }
         }
+
+        return closest_sphere
+    }
+
+    pub fn calc_ray(&self, ray: &Ray, depth: i32) -> Vec3{
+        if depth == 0 {
+            return Vec3::new(0.0, 0.0, 0.0);
+        }
+
+        // Find what ray intersects
+        let mut closest_sphere = self.fid_intersection(ray);
 
         let mut rng = rand::thread_rng();
 
@@ -334,24 +357,13 @@ impl World {
                     return self.calc_ray(&new_ray, depth - 1);
                 }
 
-                let mut new_hemisphere_vector = Vec3::new(
-                    rng.gen::<f64>() - 0.5,
-                    rng.gen::<f64>() - 0.5,
-                    rng.gen::<f64>() - 0.5,
-                );
-                while new_hemisphere_vector.length() > 1.0 {
-                    new_hemisphere_vector.x = rng.gen::<f64>();
-                    new_hemisphere_vector.y = rng.gen::<f64>();
-                    new_hemisphere_vector.z = rng.gen::<f64>();
-                }
+                let mut new_hemisphere_vector = Vec3::new_random();
 
                 if new_hemisphere_vector.angle_between(&normal_vec) > 3.14159 / 2.0 {
                     new_hemisphere_vector.x = -new_hemisphere_vector.x;
                     new_hemisphere_vector.y = -new_hemisphere_vector.y;
                     new_hemisphere_vector.z = -new_hemisphere_vector.z;
                 }
-
-                new_hemisphere_vector = new_hemisphere_vector.normalized();
 
                 let new_ray = Ray::new(
                     new_ray_position.clone(),
@@ -461,8 +473,15 @@ fn main() {
 
     let world = World::new();
 
-    let x_res = 100 * 20;
-    let y_res = 75 * 20;
+    // let x_res = 100 * 4;
+    // let y_res = 75 * 4;
+    let x_res = 100 * 5;
+    let y_res = 75 * 5;
+    let data_size = x_res * y_res * 3;
+    let file_size = data_size + 54;
+
+    println!("data_size {}", data_size);
+    println!("file_size {}", file_size);
 
     let mut all_colors: Vec<Vec<f64>> = Vec::new();
     let mut loop_index = 0;
@@ -473,12 +492,6 @@ fn main() {
         let colors =  camera.see(&world, x_res, y_res);
         all_colors.push(colors);
 
-        let x_res: usize = 100 * 20;
-        let y_res: usize = 75 * 20;
-
-        let data_size = x_res * y_res * 3;
-        let file_size = data_size + 54;
-
         let mut binary_data: Vec<u8> = vec![0; data_size];
         for i in 0..data_size {
             let mut pixel_colo_sum = 0.0;
@@ -488,7 +501,9 @@ fn main() {
             binary_data[i] = (pixel_colo_sum * 255.0 / all_colors.len() as f64) as u8;
         }
 
-        let file_name = format!("pic-{}.bmp", loop_index * PER_PIXEL_STEPS);
+        let file_name = format!("outputs/pic-{}.bmp", loop_index * PER_PIXEL_STEPS);
+
+        println!("Writing {}", file_name);
         match File::create(file_name) {
             Ok(mut file) => {
                 file.write_all(&[
@@ -519,5 +534,7 @@ fn main() {
             },
             Err(_) => {}
         }
+
+        break;
     }
 }
