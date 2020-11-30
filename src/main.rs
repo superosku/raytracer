@@ -229,7 +229,7 @@ impl World {
                 Vec3::new(10010.0, 0.0, 0.0),
                 Vec3::new(0.5, 0.5, 0.5),
                 10000.0,
-                0.7,
+                0.0,
             ),
             Sphere::new(
                 Vec3::new(-10000.0, 0.0, 0.0),
@@ -462,7 +462,7 @@ impl Camera {
             }
         }
 
-        let zoom: f64 = 2.5;
+        let zoom: f64 = 2.7;
 
         let vec: Vec<i64> = (0..THREAD_COUNT).collect();
 
@@ -593,8 +593,8 @@ impl Camera {
 
 fn main() {
     let camera = Camera::new(
-        Vec3::new(1.0, 5.0, 1.5),
-        Vec3::new(1.0, 0.0, -0.0),
+        Vec3::new(0.1, 5.0, 1.5),
+        Vec3::new(1.0, 0.0, 0.2),
     );
 
     let world = World::new();
