@@ -7,7 +7,106 @@ use rand::prelude::*;
 
 
 const THREAD_COUNT: i64 = 16;
-const PER_PIXEL_STEPS: i64 = 100;
+// const THREAD_COUNT: i64 = 1;
+const PER_PIXEL_STEPS: i64 = 10;
+
+
+#[derive(Clone, Debug)]
+struct Mat33 {
+    a: Vec3,
+    b: Vec3,
+    c: Vec3,
+}
+
+impl Mat33 {
+    pub fn new(a: Vec3, b: Vec3, c: Vec3) -> Mat33 {
+        Mat33 {a, b, c}
+    }
+
+    pub fn inverse(&self) -> Mat33 {
+        let mut right = Mat33::new(
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+
+        let mut copy = self.clone();
+
+        // println!("inverse() inversing {:?}", copy);
+
+        // Get the best for first line
+        if copy.a.x == 0.0 {
+            if copy.b.x == 0.0 {
+                // println!("inverse() swp 1");
+                copy = Mat33::new(copy.c, copy.b, copy.a);
+                right = Mat33::new(right.c, right.b, right.a);
+            } else {
+                // println!("inverse() swp 2");
+                copy = Mat33::new(copy.b, copy.a, copy.c);
+                right = Mat33::new(right.b, right.a, right.c);
+            }
+        }
+
+        // Get the best for second line
+        if copy.b.y == 0.0 {
+            // println!("inverse() swp 3");
+            copy = Mat33::new(copy.a, copy.c, copy.b);
+            right = Mat33::new(right.a, right.c, right.b);
+        }
+        // println!("inverse() r check 1 {:?}", right);
+        // println!("inverse() c check 1 {:?}", copy);
+
+        let multiplier = -copy.b.x / copy.a.x;
+        copy.b = copy.b.add(&copy.a.multiply(multiplier));
+        right.b = right.b.add(&right.a.multiply(multiplier));
+        // println!("inverse() r check 2 {:?}", right);
+        // println!("inverse() c check 2 {:?}", copy);
+
+        let multiplier = -copy.c.x / copy.a.x;
+        copy.c = copy.c.add(&copy.a.multiply(multiplier));
+        right.c = right.c.add(&right.a.multiply(multiplier));
+        // println!("inverse() r check 3 {:?}", right);
+        // println!("inverse() c check 3 {:?}", copy);
+
+        let multiplier = -copy.c.y / copy.b.y;
+        copy.c = copy.c.add(&copy.b.multiply(multiplier));
+        right.c = right.c.add(&right.b.multiply(multiplier));
+        // println!("inverse() r check 4 {:?}", right);
+        // println!("inverse() c check 4 {:?}", copy);
+
+        let multiplier = -copy.b.z / copy.c.z;
+        copy.b = copy.b.add(&copy.c.multiply(multiplier));
+        right.b = right.b.add(&right.c.multiply(multiplier));
+        // println!("inverse() r check 5 {:?}", right);
+        // println!("inverse() c check 5 {:?}", copy);
+
+        let multiplier = -copy.a.z / copy.c.z;
+        copy.a = copy.a.add(&copy.c.multiply(multiplier));
+        right.a = right.a.add(&right.c.multiply(multiplier));
+        // println!("inverse() r check 6 {:?}", right);
+        // println!("inverse() c check 6 {:?}", copy);
+
+        let multiplier = -copy.a.y / copy.b.y;
+        copy.a = copy.a.add(&copy.b.multiply(multiplier));
+        right.a = right.a.add(&right.b.multiply(multiplier));
+        // println!("inverse() r check 7 {:?}", right);
+        // println!("inverse() c check 7 {:?}", copy);
+
+        right.a = right.a.multiply(1.0 / copy.a.x);
+        copy.a = copy.a.multiply(1.0 / copy.a.x);
+
+        right.b = right.b.multiply(1.0 / copy.b.y);
+        copy.b = copy.b.multiply(1.0 / copy.b.y);
+
+        right.c = right.c.multiply(1.0 / copy.c.z);
+        copy.c = copy.c.multiply(1.0 / copy.c.z);
+        // println!("inverse() check 8 {:?}", right);
+
+        // println!("inverse() inversed {:?}", right);
+
+        right
+    }
+}
 
 
 #[derive(Clone, Debug)]
@@ -37,6 +136,39 @@ impl Vec3 {
         }
 
         new
+    }
+
+    pub fn new_perpendiculars(other: &Vec3) -> (Vec3, Vec3) {
+        let p1 = other
+            .cross_product(&Vec3::new(0.0, 0.0, 1.0))
+            .normalized();
+        let p2 = other
+            .cross_product(&p1)
+            .normalized();
+
+        (p1, p2)
+    }
+
+    pub fn new_cosine_hemisphere(normal: &Vec3) -> Vec3 {
+        let mut rng = rand::thread_rng();
+
+        let (p1, p2) = Vec3::new_perpendiculars(&normal);
+
+        let mut x = (rng.gen::<f64>() - 0.5) * 2.0;
+        let mut y = (rng.gen::<f64>() - 0.5) * 2.0;
+
+        while x * x + y * y > 1.0 {
+            x = (rng.gen::<f64>() - 0.5) * 2.0;
+            y = (rng.gen::<f64>() - 0.5) * 2.0;
+        }
+
+        let z = (1.0 - x.powi(2) -y.powi(2)).sqrt();
+
+        let ret_val = normal.multiply(z)
+            .add(&p1.multiply(x))
+            .add(&p2.multiply(y));
+
+        ret_val
     }
 
     pub fn add(&self, other: &Vec3) -> Vec3 {
@@ -96,6 +228,57 @@ impl Vec3 {
             self.z * other.x - self.x * other.z,
             self.x * other.y - self.y * other.x,
         )
+    }
+
+    pub fn new_bias_multipliers(&self, w1: &Vec3, w2: &Vec3, w3: &Vec3) -> Vec3 {
+        // https://en.wikipedia.org/wiki/Basis_(linear_algebra)#Change_of_basis
+
+        // let v1 = Vec3::new(1.0, 0.0, 0.0);
+        // let v2 = Vec3::new(0.0, 1.0, 0.0);
+        // let v3 = Vec3::new(0.0, 0.0, 1.0);
+        //
+        // let w1_check =
+        //     v1.multiply(w1.x)
+        //     .add(&v2.multiply(w1.y))
+        //     .add(&v3.multiply(w1.z));
+        //
+        // println!("{:?} {:?}", w1, w1_check);
+
+        // println!("new_bias_multipliers() {:?}", w1);
+        // println!("new_bias_multipliers() {:?}", w2);
+        // println!("new_bias_multipliers() {:?}", w3);
+
+        let mat = Mat33::new(w1.clone(), w2.clone(), w3.clone()).inverse();
+
+        // println!("new_bias_multipliers() inversed_mat {:?}", mat);
+
+        // let x = mat.a.x * w1.x + mat.a.y * w2.x + mat.a.z * w3.x;
+        // let x = mat.a.x * w1.x + mat.b.x * w2.x + mat.c.x * w3.x;
+        // let x = mat.a.x * w1.x + mat.a.y * w1.y + mat.a.z * w1.z;
+        // let x = mat.a.x * w1.x + mat.b.x * w1.y + mat.c.x * w1.z;
+        // let x = mat.a.x * self.x + mat.b.x * self.y + mat.c.x * self.z;
+
+        // let x = mat.a.x * self.x + mat.a.y * self.y + mat.a.z * self.z;
+        // let y = mat.b.x * self.x + mat.b.y * self.y + mat.b.z * self.z;
+        // let z = mat.c.x * self.x + mat.c.y * self.y + mat.c.z * self.z;
+        let x = mat.a.x * self.x + mat.b.x * self.y + mat.c.x * self.z;
+        let y = mat.a.y * self.x + mat.b.y * self.y + mat.c.y * self.z;
+        let z = mat.a.z * self.x + mat.b.z * self.y + mat.c.z * self.z;
+
+        return Vec3::new(x, y, z);
+
+        // println!("WTF {} {} {}", x, y, z);
+        //
+        // println!("JEE {:?}", self);
+        // println!(
+        //     "JEE {:?}",
+        //     w1
+        //     .multiply( x )
+        //     .add(&w2.multiply(y))
+        //     .add( &w3.multiply(z) )
+        // );
+        //
+        // Vec3::new(0.0, 0.0, 0.0)
     }
 }
 
@@ -400,13 +583,18 @@ impl World {
                     return self.calc_ray(&new_ray, depth, ignore_emitters);
                 }
 
-                let mut new_hemisphere_vector = Vec3::new_random().normalized();
-
-                if new_hemisphere_vector.angle_between(&normal_vec) > 3.14159 / 2.0 {
-                    new_hemisphere_vector.x = -new_hemisphere_vector.x;
-                    new_hemisphere_vector.y = -new_hemisphere_vector.y;
-                    new_hemisphere_vector.z = -new_hemisphere_vector.z;
-                }
+                let new_hemisphere_vector= Vec3::new_cosine_hemisphere(&normal_vec);
+                // let mut new_hemisphere_vector = Vec3::new_random().normalized();
+                //
+                // if new_hemisphere_vector.angle_between(&normal_vec) > 3.14159 / 2.0 {
+                //     new_hemisphere_vector.x = -new_hemisphere_vector.x;
+                //     new_hemisphere_vector.y = -new_hemisphere_vector.y;
+                //     new_hemisphere_vector.z = -new_hemisphere_vector.z;
+                // }
+                //
+                // new_hemisphere_vector = new_hemisphere_vector
+                //     // .add(&normal_vec.multiply(1.0))
+                //     .normalized();
 
                 let new_ray = Ray::new(
                     new_ray_position.clone(),
@@ -462,58 +650,63 @@ impl Camera {
             }
         }
 
+        let ratio = y_res as f64 / x_res as f64;
+
         let zoom: f64 = 2.7;
 
-        let vec: Vec<i64> = (0..THREAD_COUNT).collect();
+        let x_perpendicular = self.direction
+            .cross_product(&Vec3::new(0.0, 0.0, 1.0))
+            .normalized();
+        let z_perpendicular = self.direction
+            .cross_product(&x_perpendicular)
+            .normalized();
 
-        let all_color_datas: Vec<Vec<f64>> = vec.par_iter().map(|thread_index| {
+        let thread_indexes: Vec<i64> = (0..THREAD_COUNT).collect();
+
+        let all_color_datas: Vec<Vec<f64>> = thread_indexes.par_iter().map(|thread_index| {
             // let mut total_counter = 0;
             // let mut hit_counter = 0;
 
             let mut color_data: Vec<f64> = vec![0.0; x_res * y_res * 3];
 
             let thread_len = xy_pairs.len() / THREAD_COUNT as usize;
+            if a > 0 {
+                for pixel_index in 0..thread_len {
+                    let (x, y) = xy_pairs[pixel_index * THREAD_COUNT as usize + *thread_index as usize];
 
-            for pixel_index in 0..thread_len {
-                let (x, y) = xy_pairs[pixel_index * THREAD_COUNT as usize + *thread_index as usize];
+                    let x_angle: f64 = -(x as f64 - (x_res as f64 - 1.0) / 2.0) / (x_res as f64 - 1.0);
+                    let mut z_angle: f64 = (y as f64 - (y_res as f64 - 1.0) / 2.0) / (y_res as f64 - 1.0);
+                    z_angle *= ratio;
+                    // x_angle goes from -0.5 to 0.5
 
-                let x_angle: f64 = -(x as f64 - (x_res as f64 - 1.0) / 2.0) / (x_res as f64 - 1.0);
-                let mut z_angle: f64 = (y as f64 - (y_res as f64 - 1.0) / 2.0) / (y_res as f64  - 1.0);
-                z_angle *= y_res as f64 / x_res as f64;
-                // x_angle goes from -0.5 to 0.5
+                    let new_direction =
+                        self.direction
+                            .add(&x_perpendicular.multiply(x_angle * zoom))
+                            .add(&z_perpendicular.multiply(z_angle * zoom));
 
-                let x_perpendicular = self.direction
-                    .cross_product(&Vec3::new(0.0, 0.0, 1.0));
-                let z_perpendicular = self.direction
-                    .cross_product(&x_perpendicular);
+                    let ray = Ray::new(self.origin.clone(), new_direction.normalized());
 
-                let new_direction =
-                    self.direction
-                    .add(&x_perpendicular.multiply(x_angle * zoom))
-                    .add(&z_perpendicular.multiply(z_angle * zoom));
+                    let mut color = Vec3::new(0.0, 0.0, 0.0);
 
-                let ray = Ray::new(self.origin.clone(), new_direction.normalized());
-
-                let mut color = Vec3::new(0.0, 0.0, 0.0);
-
-                for _ in 0..PER_PIXEL_STEPS {
-                    // let choices = vec![
-                    //     (1, 0),
-                    //     (1, 1),
-                    //     (1, 2),
-                    //     (1, 3),
-                    //     (2, 0),
-                    //     (2, 1),
-                    //     (2, 2),
-                    //     (2, 3),
-                    //     (3, 0),
-                    //     (3, 1),
-                    //     (3, 2),
-                    //     (3, 3),
-                    // ];
-                    //
-                    // for (a, b) in choices.iter() {
+                    for _ in 0..PER_PIXEL_STEPS {
+                        // let choices = vec![
+                        //     (1, 0),
+                        //     (1, 1),
+                        //     (1, 2),
+                        //     (1, 3),
+                        //     (2, 0),
+                        //     (2, 1),
+                        //     (2, 2),
+                        //     (2, 3),
+                        //     (3, 0),
+                        //     (3, 1),
+                        //     (3, 2),
+                        //     (3, 3),
+                        // ];
+                        //
+                        // for (a, b) in choices.iter() {
                         let mut step_color = Vec3::new(0.0, 0.0, 0.0);
+
                         match world.calc_ray(&ray, a, false) {
                             Some((ray_position, color1, hit_light)) => {
                                 if hit_light {
@@ -558,18 +751,94 @@ impl Camera {
                                 step_color = Vec3::new(1.0, 0.0, 1.0);
                             }
                         }
+
                         color = color.add(&step_color);
                     }
-                // }
+                    // }
 
-                color = color.multiply(0.125 * 7.5 * 1.0 / PER_PIXEL_STEPS as f64);
+                    color = color.multiply(0.125 * 7.5 * 1.0 / PER_PIXEL_STEPS as f64);
 
-                let i = x;
-                let j = y_res - y - 1;
+                    let i = x;
+                    let j = y_res - y - 1;
 
-                color_data[(i + j * x_res) * 3 + 0] = color.z;
-                color_data[(i + j * x_res) * 3 + 1] = color.y;
-                color_data[(i + j * x_res) * 3 + 2] = color.x;
+                    color_data[(i + j * x_res) * 3 + 0] = color.z;
+                    color_data[(i + j * x_res) * 3 + 1] = color.y;
+                    color_data[(i + j * x_res) * 3 + 2] = color.x;
+                }
+            } else {
+                for i in 0..(thread_len * PER_PIXEL_STEPS as usize) {
+                    let random_emitter_pos = Vec3::new_random()
+                        .multiply(world.emitter.radius)
+                        .add(&world.emitter.position);
+                    let random_emitter_dir = Vec3::new_random().normalized();
+
+                    let emitter_ray = Ray::new(
+                        random_emitter_pos.clone(),
+                        random_emitter_dir,
+                    );
+
+                    // step_color = color1;
+
+                    match world.calc_ray(&emitter_ray, b, true) {
+                        Some((light_position, color, _)) => {
+                            let sees = world.sees(&self.origin, &light_position);
+                            // if sees {
+                            //     println!("asdf {} {:?} {:?}", sees, ray_position, light_position);
+                            // }
+
+                            // total_counter += 1;
+                            if sees {
+                                let direction = self.origin
+                                    .substract(&light_position).normalized();
+
+                                let mut hmm = direction
+                                    .new_bias_multipliers(
+                                        &self.direction, &x_perpendicular, &z_perpendicular
+                                    )
+                                    // .multiply(0.5)
+                                    ;
+
+                                if hmm.x > 0.0 {
+                                    continue
+                                }
+
+                                hmm = hmm
+                                    .multiply(-1.0 / hmm.x)
+                                    .multiplyv(&Vec3::new(1.0, 1.0, 1.0 / ratio))
+                                    .multiply(1.0 / zoom)
+                                    .add(&Vec3::new(0.0, 0.5, 0.5))
+                                    ;
+
+                                if
+                                    hmm.z > 0.0 &&
+                                    hmm.z < 1.0 &&
+                                    hmm.y > 0.0 &&
+                                    hmm.y < 1.0
+                                {
+                                    let x = ((hmm.y * x_res as f64) as i32).min(x_res as i32) as usize;
+                                    let y = ((hmm.z * y_res as f64) as i32).min(y_res as i32) as usize;
+
+                                    let multiplier = 0.1;
+                                    color_data[(x + y * x_res) * 3 + 0] += color.z * multiplier;
+                                    color_data[(x + y * x_res) * 3 + 1] += color.y * multiplier;
+                                    color_data[(x + y * x_res) * 3 + 2] += color.x * multiplier;
+                                    // println!("SEES {} {} {:?}", x, y, hmm);
+                                } else {
+                                    // println!("NO SEES 2");
+                                }
+
+                                // hit_counter += 1;
+                                // step_color = color1.multiplyv(&color2);
+                            } else {
+                                // println!("NO SEES 1");
+                                // step_color = Vec3::new(0.0, 0.0, 0.0);
+                            }
+                        },
+                        _ => {
+                            // step_color = Vec3::new(0.0, 0.0, 0.0);
+                        }
+                    }
+                }
             }
 
             // println!("counters {} {} {}", hit_counter, total_counter, hit_counter as f64 / total_counter as f64);
@@ -580,9 +849,9 @@ impl Camera {
         for (x, y) in xy_pairs.iter() {
             for color_data in all_color_datas.iter() {
                 let index = (x + y * x_res) * 3;
-                collected_colors[index + 0] = color_data[index + 0].max(collected_colors[index + 0]);
-                collected_colors[index + 1] = color_data[index + 1].max(collected_colors[index + 1]);
-                collected_colors[index + 2] = color_data[index + 2].max(collected_colors[index + 2]);
+                collected_colors[index + 0] = color_data[index + 0] + collected_colors[index + 0];
+                collected_colors[index + 1] = color_data[index + 1] + collected_colors[index + 1];
+                collected_colors[index + 2] = color_data[index + 2] + collected_colors[index + 2];
             }
         }
 
@@ -599,6 +868,22 @@ fn main() {
 
     let world = World::new();
 
+    // let mut mat = Mat33::new(
+    //     Vec3::new(0.0, 0.0, 2.0),
+    //     Vec3::new(1.0, 1.0, 1.0),
+    //     Vec3::new(1.0, 0.0, 0.0),
+    // );
+    // //
+    // // println!("inversed {:?}", mat.inverse());
+    //
+    // Vec3::new(10.0, 1.0, 3.0).new_bias_multipliers(
+    //     &Vec3::new(1.0, 2.0, 3.0),
+    //     &Vec3::new(0.5, 1.2, 0.0),
+    //     &Vec3::new(1.0, 0.0, 0.7),
+    // );
+    //
+    // return;
+
     // let temp_sees = world.sees(
     //     &Vec3::new(1.0, 1.0, 1.0),
     //     &Vec3::new(9.0, 9.0, 9.0),
@@ -612,8 +897,8 @@ fn main() {
     // let y_res = 75 * 4;
     // let x_res = 100 * 5;
     // let y_res = 75 * 5;
-    let x_res = 100 * 20;
-    let y_res = 75 * 20;
+    let x_res = 100 * 10;
+    let y_res = 75 * 10;
     let data_size = x_res * y_res * 3;
     let file_size = data_size + 54;
 
@@ -622,26 +907,19 @@ fn main() {
 
 
     let choices = vec![
-        // (1, 0),
+        (0, 0),
+        (0, 1),
+        (0, 2),
+        (0, 3),
         (1, 1),
         (1, 2),
         (1, 3),
-        (2, 0),
         (2, 1),
         (2, 2),
         (2, 3),
-        (3, 0),
         (3, 1),
-        (3, 2),
+        // (3, 2),
         // (3, 3),
-        (4, 0),
-        (4, 1),
-        // (4, 2),
-        // (4, 3),
-        // (5, 0),
-        // (5, 1),
-        // (5, 2),
-        // (5, 3),
     ];
 
     let mut all_all_colors: Vec<Vec<f64>> = Vec::new();
@@ -665,7 +943,7 @@ fn main() {
                 binary_data[i] = (pixel_colo_sum * 255.0 / all_colors.len() as f64) as u8;
             }
 
-            let file_name = format!("outputs/pict-{}-{}-{}.bmp", a, b, loop_index * PER_PIXEL_STEPS);
+            let file_name = format!("outputs/pict-{}-{}-{}.bmp", loop_index * PER_PIXEL_STEPS, a, b);
 
             println!("Writing {}", file_name);
             match File::create(file_name) {
